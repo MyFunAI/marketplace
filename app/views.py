@@ -9,3 +9,7 @@ def index():
     print content
     return "Hello, World!"
 
+
+@app.route('/test')
+def index():
+    return "Testing!"
