@@ -2,6 +2,10 @@ from config import *
 import codecs
 import json
 import os
+import sys
+  
+reload(sys)   
+sys.setdefaultencoding('utf8')
 
 """
     Load file from disk
