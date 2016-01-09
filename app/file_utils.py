@@ -8,13 +8,13 @@ import json
 """
 def load_file(path):
     try:
-	print 'load_file'
+	print 'load_file', path
 	fid = open(path, mode = 'r', encoding = 'utf-8')
 	content = fid.read()
 	fid.close()
 	return content
     except IOError, e:
-	print "load_file error %s" % e
+	print "load_file error", e
 	return EMPTY_STRING
 
 """
@@ -29,5 +29,5 @@ def load_json_file(path):
 	obj = json.loads(content, 'utf-8')
 	return obj
     except ValueError, e:
-	print "load_json_file error %s" % e
+	print "load_json_file error", e
         return EMPTY_DICT
