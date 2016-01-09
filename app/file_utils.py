@@ -17,7 +17,7 @@ def load_file(path):
 	fid.close()
 	print 'file content %s' % content
 	return content
-    except IOError, e:
+    except ValueError, e:
 	print "load_file error", e
 	return EMPTY_STRING
 
