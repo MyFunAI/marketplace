@@ -53,7 +53,8 @@ POSTS_PER_PAGE = 50
 MAX_SEARCH_RESULTS = 50
 
 # Expert category file path
-EXPERT_CATEGORY_PATH = './app/resources/expert_categories.txt'
+# EXPERT_CATEGORY_PATH = './app/resources/expert_categories.txt'
+EXPERT_CATEGORY_PATH = './resources/expert_categories.txt'
 
 EMPTY_STRING = ''
 EMPTY_DICT = {}
