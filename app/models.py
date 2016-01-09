@@ -12,11 +12,13 @@ else:
     if enable_search:
         import flask.ext.whooshalchemy as whooshalchemy
 
+"""
 categories = db.Table(
     'categories',
     db.Column('user_id', db.Integer, db.ForeignKey('user.user_id')),
     db.Column('category_id', db.Integer, db.ForeignKey('category.user_id'))
 )
+"""
 
 class Category(db.Model):
     category_id = db.Column(db.Integer, index = True, primary_key = True)
@@ -27,12 +29,14 @@ class Category(db.Model):
     Experts and non-experts (who pay to talk to experts) inherit from this class. 
 """
 class BaseUser(db.Model):
+    """
     categories = db.relationship('User',
                                secondary=followers,
                                primaryjoin=(followers.c.follower_id == id),
                                secondaryjoin=(followers.c.followed_id == id),
                                backref=db.backref('followers', lazy='dynamic'),
                                lazy='dynamic')
+    """
 
     user_id = db.Column(db.Integer, index = True, primary_key = True)
     email = db.Column(db.String(120), index=True, unique=True)
