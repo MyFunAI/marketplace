@@ -1,5 +1,10 @@
 # -*- coding: utf8 -*-
 import os
+import sys
+
+reload(sys)
+sys.setdefaultencoding('utf8')
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 CSRF_ENABLED = True
