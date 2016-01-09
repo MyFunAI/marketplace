@@ -11,13 +11,13 @@ import os
 def load_file(path):
     try:
 	print 'load_file', path
+	print "current dir", os.getcwd()
 	fid = codecs.open(path, encoding = 'utf-8')
 	content = fid.read()
 	fid.close()
 	print 'file content %s' % content
 	return content
     except IOError, e:
-	print "current dir", os.getcwd()
 	print "load_file error", e
 	return EMPTY_STRING
 
@@ -28,6 +28,7 @@ def load_file(path):
 """
 def load_json_file(path):
     print 'load_json_file', path
+    print "current dir", os.getcwd()
     content = load_file(path)
     try:
 	obj = json.loads(content, encoding = 'utf-8')
