@@ -12,6 +12,7 @@ def load_file(path):
 	fid = open(path, mode = 'r', encoding = 'utf-8')
 	content = fid.read()
 	fid.close()
+	print 'file content %s' % content
 	return content
     except IOError, e:
 	print "load_file error", e
@@ -27,6 +28,7 @@ def load_json_file(path):
     content = load_file(path)
     try:
 	obj = json.loads(content, 'utf-8')
+	print 'json obj', obj
 	return obj
     except ValueError, e:
 	print "load_json_file error", e
