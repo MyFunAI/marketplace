@@ -6,7 +6,6 @@ from file_utils import *
 @app.route('/index')
 def index():
     content = load_json_file(EXPERT_CATEGORY_PATH)
-    print content
     return "Hello, World!"
 
 
