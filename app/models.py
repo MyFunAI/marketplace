@@ -12,17 +12,11 @@ else:
     if enable_search:
         import flask.ext.whooshalchemy as whooshalchemy
 
-"""
-categories = db.Table(
-    'categories',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.user_id')),
-    db.Column('category_id', db.Integer, db.ForeignKey('category.user_id'))
+topics = db.Table(
+    'topics',
+    db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
+    db.Column('topic_id', db.Integer, db.ForeignKey('topic.topic_id'))
 )
-"""
-
-class Category(db.Model):
-    category_id = db.Column(db.Integer, index = True, primary_key = True)
-    category = db.Column(db.String(20))
 
 """
     The base class for users.
@@ -37,7 +31,6 @@ class BaseUser(db.Model):
                                backref=db.backref('followers', lazy='dynamic'),
                                lazy='dynamic')
     """
-
     user_id = db.Column(db.Integer, index = True, primary_key = True)
     email = db.Column(db.String(120), index=True, unique=True)
     last_seen = db.Column(db.DateTime)
@@ -46,19 +39,49 @@ class BaseUser(db.Model):
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
 
+
+"""
+    Customers pay expert to get services.
+"""
 class Customer(BaseUser):
     phone_number = db.Column(db.String(20), index=True, unique=True)
 
+    following_topics = db.relationship(
+	'Topic',
+	secondary = topics,
+        backref = db.backref('following_customers', lazy = 'dynamic'),
+	lazy = 'dynamic'
+    )
+
+    paid_topics = db.relationship(
+	'Topic',
+	secondary = topics,
+        backref = db.backref('paid_customers', lazy='dynamic'),
+	lazy = 'dynamic'
+    )
+
+    """
+	A many-to-many relationship exists between customers and topics.
+    """
+
+
+"""
+    Experts are paid to provide consulting services.
+"""
 class Expert(BaseUser):
-    posts = db.relationship('Post', backref='author', lazy='dynamic')
-    education = db.Column(db.String(50))
-    skills = db.Column(db.String(500))
-    rating = db.Column(db.Float)
-    wanted_count = db.Column(db.Integer)  #the number of thumb-ups this guy has received (both answers and articles)
-    phone_rate = db.Column(db.Float)
-    expert_flag = db.Column(db.Boolean)
-    category_1_index = db.Column(db.Integer)  #the category hierarchy is specified in the expert_categories.txt file
-    category_2_index = db.Column(db.Integer)
+    degree = db.Column(db.String(10))  #Ph.D., M.S., M.B.A., etc.
+    university = db.Column(db.String(50))  #University name
+    major = db.Column(db.String(50))  #degree, university and major are usually used together
+    rating = db.Column(db.Float)  #rating of this expert based on the feedback from the customers
+    needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
+    serving_count = db.Column(db.Integer)  #times this expert served customers
+    category_1_index = db.Column(db.Integer)  #top level category, the category hierarchy is specified in the expert_categories.txt file
+    category_2_index = db.Column(db.Integer)  #second level category
+
+    """
+	A one-to-many relationship exists between an expert and topics.
+    """
+    topics = db.relationship('Topic', backref='expert_id', lazy='dynamic')
 
     @staticmethod
     def make_valid_nickname(nickname):
@@ -121,19 +144,22 @@ class Expert(BaseUser):
     def __repr__(self):  # pragma: no cover
         return '<User %r>' % (self.nickname)
 
-
-class Post(db.Model):
+"""
+    Experts serve customers via Topic. In other words, an expert could provide multiple
+    topics to serve customers. Each topic has its own cost. A customer can buy multiple
+    topics, the service of each of which is in the form of an in-app audio conversation.
+"""
+class Topic(db.Model):
     __searchable__ = ['body']
 
-    id = db.Column(db.Integer, primary_key=True)
-    body = db.Column(db.String(140))
+    topic_id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.String(500))
+    title = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    language = db.Column(db.String(5))
+    rate = db.Column(db.Float)  #how much this topic costs
 
     def __repr__(self):  # pragma: no cover
-        return '<Post %r>' % (self.body)
-
+        return '<Topic %r>' % (self.body)
 
 if enable_search:
-    whooshalchemy.whoosh_index(app, Post)
+    whooshalchemy.whoosh_index(app, Topic)

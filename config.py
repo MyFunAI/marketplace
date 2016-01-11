@@ -2,6 +2,9 @@
 import os
 import sys
 
+"""
+    These two lines are not needed in my local environment, but are needed on Heroku, hmm ...
+"""
 reload(sys)
 sys.setdefaultencoding('utf8')
 
