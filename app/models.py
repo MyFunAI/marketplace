@@ -23,6 +23,7 @@ topics = db.Table(
     Experts and non-experts (who pay to talk to experts) inherit from this class. 
 """
 class BaseUser(db.Model):
+    __tablename__ = 'base_user'
     """
     categories = db.relationship('User',
                                secondary=followers,
@@ -44,6 +45,8 @@ class BaseUser(db.Model):
     Customers pay expert to get services.
 """
 class Customer(BaseUser):
+    __tablename__ = 'customer'
+    user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
     phone_number = db.Column(db.String(20), index=True, unique=True)
 
     following_topics = db.relationship(
@@ -69,6 +72,7 @@ class Customer(BaseUser):
     Experts are paid to provide consulting services.
 """
 class Expert(BaseUser):
+    user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
     degree = db.Column(db.String(10))  #Ph.D., M.S., M.B.A., etc.
     university = db.Column(db.String(50))  #University name
     major = db.Column(db.String(50))  #degree, university and major are usually used together
@@ -160,6 +164,7 @@ class Topic(db.Model):
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
+
 
 if enable_search:
     whooshalchemy.whoosh_index(app, Topic)
