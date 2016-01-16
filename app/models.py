@@ -72,6 +72,7 @@ class Customer(BaseUser):
     Experts are paid to provide consulting services.
 """
 class Expert(BaseUser):
+    __tablename__ = 'expert'
     user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
     degree = db.Column(db.String(10))  #Ph.D., M.S., M.B.A., etc.
     university = db.Column(db.String(50))  #University name
@@ -85,7 +86,7 @@ class Expert(BaseUser):
     """
 	A one-to-many relationship exists between an expert and topics.
     """
-    topics = db.relationship('Topic', backref='expert_id', lazy='dynamic')
+    serving_topics = db.relationship('Topic', backref='expert', lazy='dynamic')
 
     @staticmethod
     def make_valid_nickname(nickname):
@@ -154,6 +155,7 @@ class Expert(BaseUser):
     topics, the service of each of which is in the form of an in-app audio conversation.
 """
 class Topic(db.Model):
+    __tablename__ = 'topic'
     __searchable__ = ['body']
 
     topic_id = db.Column(db.Integer, primary_key=True)
@@ -161,10 +163,10 @@ class Topic(db.Model):
     title = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime)
     rate = db.Column(db.Float)  #how much this topic costs
+    expert_id = db.Column(db.Integer, db.ForeignKey('expert.user_id'))
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
-
 
 if enable_search:
     whooshalchemy.whoosh_index(app, Topic)

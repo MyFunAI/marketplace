@@ -22,6 +22,7 @@ OPENID_PROVIDERS = [
 
 if os.environ.get('DATABASE_URL') is None:
     SQLALCHEMY_DATABASE_URI = ('sqlite:///' + os.path.join(basedir, 'iaskdata.db') +
+    #SQLALCHEMY_DATABASE_URI = ('mysql+mysqldb:///' + os.path.join(basedir, 'iaskdata-mysql.db') +
                                '?check_same_thread=False')
 else:
     SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
