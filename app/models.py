@@ -62,11 +62,32 @@ class Customer(BaseUser):
         backref = db.backref('paid_customers', lazy='dynamic'),
 	lazy = 'dynamic'
     )
+    
+    def follow_topic(self, topic):
+        if not self.is_following(topic):
+            self.following_topics.append(topic)
+            return self
 
-    """
-	A many-to-many relationship exists between customers and topics.
-    """
+    def unfollow_topic(self, topic):
+        if self.is_following(topic):
+            self.following_topics.remove(topic)
+            return self
 
+    def add_paid_topic(self, topic):
+        if not self.is_paid(topic):
+            self.paid_topics.append(topic)
+            return self
+
+    def remove_paid_topic(self, topic):
+        if self.is_paid(topic):
+            self.paid_topics.remove(topic)
+            return self
+
+    def is_following(self, topic):
+        return self.following_topics.filter(topics.c.topic_id == topic.topic_id).count() > 0
+
+    def is_paid(self, topic):
+        return self.paid_topics.filter(topics.c.topic_id == topic.topic_id).count() > 0
 
 """
     Experts are paid to provide consulting services.

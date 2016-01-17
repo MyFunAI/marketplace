@@ -13,6 +13,7 @@ from config import basedir
 from app import app, db
 from app.models import BaseUser, Customer, Expert, Topic
 #from app.translate import microsoft_translate
+from tests_data import *
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -27,44 +28,34 @@ class TestCase(unittest.TestCase):
         db.drop_all()
 
     def test_topic(self):
-	# create a topic
-	t = Topic(
-            topic_id = 1,
-            body = 'Our company needs a real-time recommendation system, who can help us?',
-    	    title = u'推荐系统求助',
-    	    timestamp = datetime.utcnow(),
-    	    rate = 100.0,
-	    expert_id = 1
-	)
-        db.session.add(t)
+        db.session.add(test_topic_1)
         db.session.commit()
         queried_t = Topic.query.get(1)
-	assert t.topic_id == 1
-	assert t.title == '推荐系统求助'
-	assert t.timestamp == queried_t.timestamp
+	assert test_topic_1.topic_id == 1
+	assert test_topic_1.title == '推荐系统求助'
+	assert test_topic_1.rate == 100.0
+	assert test_topic_1.timestamp == queried_t.timestamp
+
+    def test_customer_no_topics(self):
+        db.session.add(test_customer_no_topics)
+        #db.session.commit()
+	queried_customer = Customer.query.get(1)
+        assert queried_customer.user_id == 1
+        assert queried_customer.email == 'larry@iaskdata.com'
+        assert queried_customer.following_topics.all() == []
+        assert queried_customer.paid_topics.all() == []
+        db.session.commit()
+
+    def test_customer_topics(self):
+        db.session.add(test_customer_following_topics)
+        db.session.commit()
+	queried_customer = Customer.query.all()
+        assert queried_customer[0].user_id == 2
+        assert queried_customer[0].email == 'zuck@iaskdata.com'
+        assert queried_customer[0].following_topics.all() == []
+        assert queried_customer[0].paid_topics.all() == []
 
     """
-    @unittest.skip("Not being tested for the moment")
-    def test_customer(self):
-        # create a customer
-        u = User(nickname='john', email='john@example.com')
-	c = Customer(
-	    user_id = 1,
-    	    email = 'top@iaskdata.com',
-    	    last_seen = db.Column(db.DateTime)
-    	    name = 'jack',
-    	    company = 'facebook',
-    	    title = 'VP',
-    	    about_me = 'i love my job',
-	    phone_number = '13880089009'
-	)
-        db.session.add(u)
-        db.session.commit()
-        assert u.is_authenticated is True
-        assert u.is_active is True
-        assert u.is_anonymous is False
-        assert u.id == int(u.get_id())
-
     @unittest.skip("Not being tested for the moment")
     def test_avatar(self):
         # create a user
