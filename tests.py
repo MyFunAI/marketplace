@@ -49,7 +49,7 @@ class TestCase(unittest.TestCase):
 
     def test_customer_topics(self):
 	test_topic_1 = build_topic_1()
-        test_customer_following_topics = build_customer_with_following_topics()
+        test_customer_following_topics = build_customer_with_topics()
         db.session.add(test_customer_following_topics)
         test_customer_following_topics.follow_topic(test_topic_1)
         db.session.commit()
@@ -58,6 +58,46 @@ class TestCase(unittest.TestCase):
         assert queried_customer[0].email == 'zuck@iaskdata.com'
         assert queried_customer[0].following_topics.all() == [test_topic_1]
         assert queried_customer[0].paid_topics.all() == []
+
+    def test_customer_multi_topics(self):
+	test_topic_1 = build_topic_1()
+	test_topic_2 = build_topic_2()
+        test_customer_topics = build_customer_with_topics()
+        db.session.add(test_customer_topics)
+        test_customer_topics.follow_topic(test_topic_1)
+        test_customer_topics.add_paid_topic(test_topic_2)
+        db.session.commit()
+	queried_customer = Customer.query.all()
+        assert queried_customer[0].user_id == 2
+        assert queried_customer[0].email == 'zuck@iaskdata.com'
+        assert queried_customer[0].following_topics.all() == [test_topic_1]
+        assert queried_customer[0].paid_topics.all() == [test_topic_2]
+
+    """
+	This has some redundancy with the test_customer_topics method above
+    """
+    def test_follow_topics(self):
+	test_topic_1 = build_topic_1()
+        test_customer_following_topics = build_customer_with_topics()
+        db.session.add(test_customer_following_topics)
+        db.session.commit()
+        assert test_customer_following_topics.unfollow_topic(test_topic_1) is None
+	t = test_customer_following_topics.follow_topic(test_topic_1)
+        db.session.add(t)
+        db.session.commit()
+	assert test_customer_following_topics.follow_topic(test_topic_1) is None
+        assert test_customer_following_topics.is_following(test_topic_1)
+        assert test_customer_following_topics.following_topics.count() == 1
+        assert test_customer_following_topics.following_topics.first().title == u'推荐系统求助'
+        assert test_topic_1.following_customers.count() == 1
+        assert test_topic_1.following_customers.first().email == 'zuck@iaskdata.com'
+        t1 = test_customer_following_topics.unfollow_topic(test_topic_1)
+        assert t1 is not None
+        db.session.add(t1)
+        db.session.commit()
+        assert not t1.is_following(test_topic_1)
+        assert test_customer_following_topics.following_topics.count() == 0
+        assert test_topic_1.following_customers.count() == 0
 
     """
     @unittest.skip("Not being tested for the moment")
@@ -68,49 +108,6 @@ class TestCase(unittest.TestCase):
         expected = 'http://www.gravatar.com/avatar/' + \
             'd4c74594d841139328695756648b6bd6'
         assert avatar[0:len(expected)] == expected
-
-    @unittest.skip("Not being tested for the moment")
-    def test_make_unique_nickname(self):
-        # create a user and write it to the database
-        u = User(nickname='john', email='john@example.com')
-        db.session.add(u)
-        db.session.commit()
-        nickname = User.make_unique_nickname('susan')
-        assert nickname == 'susan'
-        nickname = User.make_unique_nickname('john')
-        assert nickname != 'john'
-        # make another user with the new nickname
-        u = User(nickname=nickname, email='susan@example.com')
-        db.session.add(u)
-        db.session.commit()
-        nickname2 = User.make_unique_nickname('john')
-        assert nickname2 != 'john'
-        assert nickname2 != nickname
-
-    @unittest.skip("Not being tested for the moment")
-    def test_follow(self):
-        u1 = User(nickname='john', email='john@example.com')
-        u2 = User(nickname='susan', email='susan@example.com')
-        db.session.add(u1)
-        db.session.add(u2)
-        db.session.commit()
-        assert u1.unfollow(u2) is None
-        u = u1.follow(u2)
-        db.session.add(u)
-        db.session.commit()
-        assert u1.follow(u2) is None
-        assert u1.is_following(u2)
-        assert u1.followed.count() == 1
-        assert u1.followed.first().nickname == 'susan'
-        assert u2.followers.count() == 1
-        assert u2.followers.first().nickname == 'john'
-        u = u1.unfollow(u2)
-        assert u is not None
-        db.session.add(u)
-        db.session.commit()
-        assert not u1.is_following(u2)
-        assert u1.followed.count() == 0
-        assert u2.followers.count() == 0
 
     @unittest.skip("Not being tested for the moment")
     def test_follow_posts(self):

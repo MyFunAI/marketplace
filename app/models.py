@@ -12,6 +12,11 @@ else:
     if enable_search:
         import flask.ext.whooshalchemy as whooshalchemy
 
+"""
+    Not sure if we really need following_topics and paid_topics. However, using only one
+    caused errors in the unit test. Maybe using two is the right way. We should re-visit this
+    later on.
+"""
 following_topics = db.Table(
     'following_topics',
     db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),

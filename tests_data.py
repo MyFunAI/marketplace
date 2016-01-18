@@ -41,8 +41,8 @@ def build_test_customer_no_topics():
     )
     return test_customer_no_topics
 
-def build_customer_with_following_topics():
-    test_customer_following_topics = Customer(
+def build_customer_with_topics():
+    test_customer_topics = Customer(
         user_id = 2,
         email = 'zuck@iaskdata.com',
         last_seen = datetime.utcnow(),
@@ -52,18 +52,5 @@ def build_customer_with_following_topics():
         about_me = 'i love my job',
         phone_number = '13880089001'
     )
-    return test_customer_following_topics
-
-def build_customer_with_paying_topics():
-    test_customer_following_and_paying_topics = Customer(
-        user_id = 3,
-        email = 'tim@iaskdata.com',
-        last_seen = datetime.utcnow(),
-        name = 'tim',
-        company = 'apple',
-        title = 'CEO',
-        about_me = 'i love my job',
-        phone_number = '13880089002'
-    )
-    return test_customer_following_and_paying_topics
+    return test_customer_topics
 
