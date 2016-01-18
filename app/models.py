@@ -12,8 +12,14 @@ else:
     if enable_search:
         import flask.ext.whooshalchemy as whooshalchemy
 
-topics = db.Table(
-    'topics',
+following_topics = db.Table(
+    'following_topics',
+    db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
+    db.Column('topic_id', db.Integer, db.ForeignKey('topic.topic_id'))
+)
+
+paid_topics = db.Table(
+    'paid_topics',
     db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
     db.Column('topic_id', db.Integer, db.ForeignKey('topic.topic_id'))
 )
@@ -51,14 +57,14 @@ class Customer(BaseUser):
 
     following_topics = db.relationship(
 	'Topic',
-	secondary = topics,
+	secondary = following_topics,
         backref = db.backref('following_customers', lazy = 'dynamic'),
 	lazy = 'dynamic'
     )
 
     paid_topics = db.relationship(
 	'Topic',
-	secondary = topics,
+	secondary = paid_topics,
         backref = db.backref('paid_customers', lazy='dynamic'),
 	lazy = 'dynamic'
     )
@@ -84,10 +90,10 @@ class Customer(BaseUser):
             return self
 
     def is_following(self, topic):
-        return self.following_topics.filter(topics.c.topic_id == topic.topic_id).count() > 0
+        return self.following_topics.filter(following_topics.c.topic_id == topic.topic_id).count() > 0
 
     def is_paid(self, topic):
-        return self.paid_topics.filter(topics.c.topic_id == topic.topic_id).count() > 0
+        return self.paid_topics.filter(paid_topics.c.topic_id == topic.topic_id).count() > 0
 
 """
     Experts are paid to provide consulting services.

@@ -28,6 +28,7 @@ class TestCase(unittest.TestCase):
         db.drop_all()
 
     def test_topic(self):
+	test_topic_1 = build_topic_1()
         db.session.add(test_topic_1)
         db.session.commit()
         queried_t = Topic.query.get(1)
@@ -37,22 +38,25 @@ class TestCase(unittest.TestCase):
 	assert test_topic_1.timestamp == queried_t.timestamp
 
     def test_customer_no_topics(self):
+        test_customer_no_topics = build_test_customer_no_topics()
         db.session.add(test_customer_no_topics)
-        #db.session.commit()
+        db.session.commit()
 	queried_customer = Customer.query.get(1)
         assert queried_customer.user_id == 1
         assert queried_customer.email == 'larry@iaskdata.com'
         assert queried_customer.following_topics.all() == []
         assert queried_customer.paid_topics.all() == []
-        db.session.commit()
 
     def test_customer_topics(self):
+	test_topic_1 = build_topic_1()
+        test_customer_following_topics = build_customer_with_following_topics()
         db.session.add(test_customer_following_topics)
+        test_customer_following_topics.follow_topic(test_topic_1)
         db.session.commit()
 	queried_customer = Customer.query.all()
         assert queried_customer[0].user_id == 2
         assert queried_customer[0].email == 'zuck@iaskdata.com'
-        assert queried_customer[0].following_topics.all() == []
+        assert queried_customer[0].following_topics.all() == [test_topic_1]
         assert queried_customer[0].paid_topics.all() == []
 
     """
