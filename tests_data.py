@@ -4,7 +4,7 @@
 from datetime import datetime, timedelta
 from config import basedir
 from app import app, db
-from app.models import BaseUser, Customer, Expert, Topic
+from app.models import BaseUser, Customer, Expert, Topic, Category
 
 def build_topic_1():
     test_topic_1 = Topic(
@@ -68,9 +68,13 @@ def build_expert_1():
         major = 'Computer Science',
         rating = 4.9,
         needed_count = 200,
-        serving_count = 10,
-        category_1_index = 1,
-        category_2_index = 2
+        serving_count = 10
     )
     return expert
+
+def build_category_1():
+    return Category(1, 2)
+ 
+def build_category_2():
+    return Category(1, 3)
 

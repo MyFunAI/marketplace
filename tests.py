@@ -118,8 +118,6 @@ class TestCase(unittest.TestCase):
 	assert test_expert.rating == 4.9
         assert test_expert.needed_count == 200
         assert test_expert.serving_count == 10
-        assert test_expert.category_1_index == 1
-        assert test_expert.category_2_index == 2
 	assert test_expert.serving_topics.count() == 1
 	assert test_expert.serving_topics.first().expert_id == 1
 	assert test_expert.serving_topics.first().title == u'推荐系统求助'
@@ -127,6 +125,21 @@ class TestCase(unittest.TestCase):
 	test_expert.remove_topic(test_topic_1)
 	assert not test_expert.has_topic(test_topic_1)
 	assert test_expert.serving_topics.count() == 0
+
+    def test_category(self):
+	test_expert = build_expert_1()
+        db.session.add(test_expert)
+        db.session.commit()
+	test_category_1 = build_category_1()
+	assert test_expert.remove_category(test_category_1) is None
+	t = test_expert.add_category(test_category_1)
+	assert test_expert.category_tags.count() == 1
+	assert test_expert.category_tags.first().category_id == 102 
+	assert test_expert.has_category(test_category_1)
+	test_category_2 = build_category_2()
+	t = test_expert.add_category(test_category_2)
+	assert test_expert.category_tags.count() == 2
+	assert test_expert.category_tags.all()[1].category_id == 103
 
     """
     @unittest.skip("Not being tested for the moment")

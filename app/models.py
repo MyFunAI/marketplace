@@ -41,6 +41,15 @@ following_experts = db.Table(
 )
 
 """
+    The many-to-many relationship between experts and skill category tags.
+"""
+category_tags = db.Table(
+    'category_tags',
+    db.Column('expert_id', db.Integer, db.ForeignKey('expert.user_id')),
+    db.Column('category_id', db.Integer, db.ForeignKey('category.category_id'))
+)
+
+"""
     The base class for users.
     Experts and non-experts (who pay to talk to experts) inherit from this class. 
 """
@@ -131,33 +140,58 @@ class Expert(BaseUser):
     rating = db.Column(db.Float)  #rating of this expert based on the feedback from the customers
     needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
     serving_count = db.Column(db.Integer)  #times this expert served customers
-    category_1_index = db.Column(db.Integer)  #top level category, the category hierarchy is specified in the expert_categories.txt file
-    category_2_index = db.Column(db.Integer)  #second level category
 
     """
 	A one-to-many relationship exists between an expert and topics.
     """
     serving_topics = db.relationship('Topic', backref='expert', lazy='dynamic')
 
+    category_tags = db.relationship(
+	'Category',
+	secondary = category_tags,
+        backref = db.backref('experts', lazy='dynamic'),
+	lazy = 'dynamic'
+    )
+
+    """
+	Remove a topic.
+	@param topic
+    """
     def remove_topic(self, topic):
         if self.has_topic(topic):
             self.serving_topics.remove(topic)
             return self
 
+    """
+	Add a topic.
+	@param topic
+    """
     def add_topic(self, topic):
         if not self.has_topic(topic):
             self.serving_topics.append(topic)
             return self
 
+    def add_category(self, category):
+        if not self.has_category(category):
+            self.category_tags.append(category)
+            return self
+
+    def remove_category(self, category):
+        if self.has_category(category):
+            self.category_tags.remove(category)
+            return self
+
+    def has_category(self, category):
+        return self.category_tags.filter(category_tags.c.category_id == category.category_id).count() > 0
+  
+    def make_category(self, first_level_index, second_level_index):
+        return Category(first_level_index, second_level_index)
+ 
     """
 	Check if this expert is already serving this topic
     """
     def has_topic(self, topic):
         return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
-
-    @staticmethod
-    def make_valid_nickname(nickname):
-        return re.sub('[^a-zA-Z0-9_\.]', '', nickname)
 
     @staticmethod
     def make_unique_nickname(nickname):
@@ -183,29 +217,10 @@ class Expert(BaseUser):
     def is_anonymous(self):
         return False
 
-    def get_id(self):
-        try:
-            return unicode(self.id)  # python 2
-        except NameError:
-            return str(self.id)  # python 3
-
+    """
     def avatar(self, size):
         return 'http://www.gravatar.com/avatar/%s?d=mm&s=%d' % \
             (md5(self.email.encode('utf-8')).hexdigest(), size)
-
-    def follow(self, user):
-        if not self.is_following(user):
-            self.followed.append(user)
-            return self
-
-    def unfollow(self, user):
-        if self.is_following(user):
-            self.followed.remove(user)
-            return self
-
-    def is_following(self, user):
-        return self.followed.filter(
-            followers.c.followed_id == user.id).count() > 0
 
     def followed_posts(self):
         return Post.query.join(
@@ -213,13 +228,14 @@ class Expert(BaseUser):
                 followers.c.follower_id == self.id).order_by(
                     Post.timestamp.desc())
 
-    def __repr__(self):  # pragma: no cover
-        return '<User %r>' % (self.nickname)
+    """
 
 """
     Experts serve customers via Topic. In other words, an expert could provide multiple
     topics to serve customers. Each topic has its own cost. A customer can buy multiple
     topics, the service of each of which is in the form of an in-app audio conversation.
+
+    Intuitively, a topic is a service focusing on a specific area that an expert provides.
 """
 class Topic(db.Model):
     __tablename__ = 'topic'
@@ -234,6 +250,21 @@ class Topic(db.Model):
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
+
+"""
+    The skill categories of an expert, represented by the indices into the category text.
+    A two-level category hierarchy is currently being used.
+    The category hierarchy is specified in the expert_categories.txt file
+
+    The first level category index can be obtained by category_id / 100
+    The second level category index can be obtained by category_id % 100
+"""
+class Category(db.Model):
+    __tablename__ = 'category'
+    category_id = db.Column(db.Integer, primary_key=True) 
+
+    def __init__(self, first_level_index, second_level_index):
+	self.category_id = first_level_index * 100 + second_level_index
 
 if enable_search:
     whooshalchemy.whoosh_index(app, Topic)
