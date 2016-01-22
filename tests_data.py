@@ -54,3 +54,23 @@ def build_customer_with_topics():
     )
     return test_customer_topics
 
+def build_expert_1():
+    expert = Expert(
+        user_id = 1,
+        email = 'andrewng@iaskdata.com',
+        last_seen = datetime.utcnow(),
+        name = 'Andrew NG',
+        company = 'Coursera',
+        title = 'Founder',
+        about_me = 'I am just GOOOOD',
+        degree = 'Ph.D.',
+        university = 'Stanford University',
+        major = 'Computer Science',
+        rating = 4.9,
+        needed_count = 200,
+        serving_count = 10,
+        category_1_index = 1,
+        category_2_index = 2
+    )
+    return expert
+

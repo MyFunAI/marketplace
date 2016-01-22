@@ -99,6 +99,35 @@ class TestCase(unittest.TestCase):
         assert test_customer_following_topics.following_topics.count() == 0
         assert test_topic_1.following_customers.count() == 0
 
+    def test_experts(self):
+	test_topic_1 = build_topic_1()
+	test_expert = build_expert_1()
+        db.session.add(test_expert)
+        db.session.commit()
+	assert test_expert.remove_topic(test_topic_1) is None
+	t = test_expert.add_topic(test_topic_1)
+	assert test_expert.user_id == 1
+	assert test_expert.email == 'andrewng@iaskdata.com'
+	assert test_expert.name == 'Andrew NG'
+        assert test_expert.company == 'Coursera'
+        assert test_expert.title == 'Founder'
+        assert test_expert.about_me == 'I am just GOOOOD'
+	assert test_expert.degree == 'Ph.D.'
+        assert test_expert.university == 'Stanford University'
+	assert test_expert.major == 'Computer Science'
+	assert test_expert.rating == 4.9
+        assert test_expert.needed_count == 200
+        assert test_expert.serving_count == 10
+        assert test_expert.category_1_index == 1
+        assert test_expert.category_2_index == 2
+	assert test_expert.serving_topics.count() == 1
+	assert test_expert.serving_topics.first().expert_id == 1
+	assert test_expert.serving_topics.first().title == u'推荐系统求助'
+        assert test_expert.serving_topics.first().rate == 100.0
+	test_expert.remove_topic(test_topic_1)
+	assert not test_expert.has_topic(test_topic_1)
+	assert test_expert.serving_topics.count() == 0
+
     """
     @unittest.skip("Not being tested for the moment")
     def test_avatar(self):

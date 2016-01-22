@@ -30,6 +30,17 @@ paid_topics = db.Table(
 )
 
 """
+    The many-to-many relationship between customers and experts. A customer following an expert
+    means that customer shows interests in that expert. That does not mean the customer is
+    requesting service from that expert. This serves as a bookmarking function.
+"""
+following_experts = db.Table(
+    'following_experts',
+    db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
+    db.Column('expert_id', db.Integer, db.ForeignKey('expert.user_id'))
+)
+
+"""
     The base class for users.
     Experts and non-experts (who pay to talk to experts) inherit from this class. 
 """
@@ -73,7 +84,15 @@ class Customer(BaseUser):
         backref = db.backref('paid_customers', lazy='dynamic'),
 	lazy = 'dynamic'
     )
-    
+    """
+    following_experts = db.relationship(
+	'Expert',
+	secondary = following_experts,
+        backref = db.backref('following_customers', lazy='dynamic'),
+	lazy = 'dynamic'
+    )
+    """
+
     def follow_topic(self, topic):
         if not self.is_following(topic):
             self.following_topics.append(topic)
@@ -119,6 +138,22 @@ class Expert(BaseUser):
 	A one-to-many relationship exists between an expert and topics.
     """
     serving_topics = db.relationship('Topic', backref='expert', lazy='dynamic')
+
+    def remove_topic(self, topic):
+        if self.has_topic(topic):
+            self.serving_topics.remove(topic)
+            return self
+
+    def add_topic(self, topic):
+        if not self.has_topic(topic):
+            self.serving_topics.append(topic)
+            return self
+
+    """
+	Check if this expert is already serving this topic
+    """
+    def has_topic(self, topic):
+        return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
 
     @staticmethod
     def make_valid_nickname(nickname):
