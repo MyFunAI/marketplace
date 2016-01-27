@@ -2,9 +2,11 @@ from hashlib import md5
 import re
 from app import db
 from app import app
-from config import WHOOSH_ENABLED
+from config import WHOOSH_ENABLED, TIME_FORMAT
+from text_utils import *
 
 import sys
+
 if sys.version_info >= (3, 0):
     enable_search = False
 else:
@@ -71,6 +73,19 @@ class BaseUser(db.Model):
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
 
+    """
+	Serialize the current object to json
+    """
+    def serialize(self):
+        return {
+            'user_id': self.user_id, 
+	    'name': self.name,
+            'email': self.email,
+	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
+	    'company': self.company,
+	    'title': self.title,
+	    'about_me': self.about_me
+	}
 
 """
     Customers pay expert to get services.
@@ -127,6 +142,16 @@ class Customer(BaseUser):
 
     def is_paid(self, topic):
         return self.paid_topics.filter(paid_topics.c.topic_id == topic.topic_id).count() > 0
+ 
+    """
+	Serialize the current object into json
+    """
+    def serialize(self):
+	json_obj = super(Customer, self).serialize()
+	json_obj['phone_number'] = self.phone_number
+	json_obj['following_topics'] = serialize_all(self.following_topics, Topic.serialize)
+	json_obj['paid_topics'] = serialize_all(self.paid_topics, Topic.serialize)
+        return json_obj
 
 """
     Experts are paid to provide consulting services.
@@ -250,6 +275,17 @@ class Topic(db.Model):
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
+
+    @staticmethod
+    def serialize(topic):
+	return {
+	    'topic_id' : topic.topic_id,
+	    'title' : topic.title,
+	    'body' : topic.body,
+	    'timestamp' : topic.timestamp.strftime(TIME_FORMAT),
+	    'rate' : topic.rate,
+	    'expert_id' : topic.expert_id
+	}
 
 """
     The skill categories of an expert, represented by the indices into the category text.

@@ -67,3 +67,6 @@ EXPERT_CATEGORY_PATH = os.path.join(basedir, 'app/resources/expert_categories.tx
 
 EMPTY_STRING = ''
 EMPTY_DICT = {}
+
+TIME_FORMAT = '%Y-%m-%d %H:%M:%S %f'
+
