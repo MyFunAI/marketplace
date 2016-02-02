@@ -12,15 +12,24 @@ def index():
     return "Hello, World!"
 
 @app.route('/api/v1/customers/<customer_id>/', methods = ['GET'])
-def customers(customer_id):
+def handle_customer(customer_id):
     user = Customer.query.filter_by(user_id = customer_id).first()
     if user is None:
 	return jsonify({'customers':''})
     else:
-        return jsonify({'customers':user.serialize()})
+        return jsonify({'customers':[user.serialize()]})
 
-@app.route('/api/v1/customers', methods = ['POST'])
-def create_customer():
+@app.route('/api/v1/customers', methods = ['POST', 'GET'])
+def handle_customers():
+    if request.method == 'POST':
+	#create customers here
+	pass
+    else:
+        users = Customer.query.all()
+    	if users is None:
+	    return jsonify({'customers':''})
+        else:
+            return jsonify({'customers':[user.serialize() for user in users]})
     return "Customer created!"
 
 """
@@ -46,6 +55,7 @@ def load_categories():
 
 @app.route('/test')
 def test():
+    print session['categories']
     return "Testing!"
 
 """

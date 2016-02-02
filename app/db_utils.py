@@ -50,6 +50,7 @@ def create_topics():
     create_topics() should be run first. 
 """
 def create_customers():
+    """
     c1 = Customer(
         user_id = 1,
         email = 'user01@gmail.com',
@@ -64,12 +65,27 @@ def create_customers():
     c1.follow_topic(Topic.query.get(1))
     c1.follow_topic(Topic.query.get(2))
     db.session.commit()
+    """
+
+    c1 = Customer(
+        user_id = 2,
+        email = 'user02@gmail.com',
+        last_seen = datetime.datetime.utcnow(),
+        name = 'customer02',
+        company = 'Tencent',
+        title = 'Engineering Director',
+        about_me = u'Seeking algorithm talents for our 大数据 projects',
+	phone_number = '18888880002'
+    )
+    db.session.add(c1)
+    c1.follow_topic(Topic.query.get(1))
+    db.session.commit()
 
 """
     Create necessary data in the db.
     Call this method in views to populate the db with some data to play with.
 """
 def create_data_in_db():
-    create_topics()
+    #create_topics()
     create_customers()
 
