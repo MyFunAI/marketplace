@@ -23,6 +23,27 @@ def customers(customer_id):
 def create_customer():
     return "Customer created!"
 
+"""
+    This method loads the categories from a text file and stores it in memory.
+    The key:value format of the data structure in memory is:
+	category-id : ['first level category text', 'second level category text']
+
+    The category-id is calculated by first_level_index * 100 + second_level_index
+
+    The content of the category hierarchy is stored in a plain text file, not in db.
+    Categories can only be updated (extended, modified or reduced) by the server side.
+"""
+@app.route('/api/v1/categories', methods = ['GET'])
+def load_categories():
+    #if request.method == 'POST':
+    content = load_json_file(EXPERT_CATEGORY_PATH)
+    categories = {}
+    for i in range(len(content['level1'])):
+	for j in range(len(content['level2'][i])):
+	    categories[(i + 1) * CATEGORY_ID_MULTIPLIER + (j + 1)] = [content['level1'][i], content['level2'][i][j]]
+    session['categories'] = categories
+    return 'Categories loaded in json'
+
 @app.route('/test')
 def test():
     return "Testing!"

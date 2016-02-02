@@ -32,9 +32,17 @@ def load_json_file(path):
     content = load_file(path)
     try:
 	obj = json.loads(content, encoding = 'utf-8')
-	print 'json obj', obj
-	print 'json fields %s' % obj["level1"][0]
 	return obj
     except ValueError, e:
 	print "load_json_file error", e
         return EMPTY_DICT
+
+"""
+    Print the categories loaded from file
+"""
+def print_categories(categories):
+    for key, value in categories.iteritems():
+	first_level_index = key / CATEGORY_ID_MULTIPLIER
+	second_level_index = key % CATEGORY_ID_MULTIPLIER
+	print "%d (%d, %d) = %s, %s" % (key, first_level_index, second_level_index, value[0], value[1])
+
