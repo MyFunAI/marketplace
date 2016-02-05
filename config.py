@@ -64,6 +64,7 @@ MAX_SEARCH_RESULTS = 50
 # Expert category file path
 # EXPERT_CATEGORY_PATH = './app/resources/expert_categories.txt'
 EXPERT_CATEGORY_PATH = os.path.join(basedir, 'app/resources/expert_categories.txt')
+IMAGE_STORAGE_PATH = '/api/v1/resources/image_storage/'
 CATEGORY_ID_MULTIPLIER = 100
 
 EMPTY_STRING = ''

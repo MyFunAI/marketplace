@@ -1,8 +1,11 @@
+# -*- coding: utf8 -*-
+
 from hashlib import md5
 import re
+import json as simplejson
 from app import db
 from app import app
-from config import WHOOSH_ENABLED, TIME_FORMAT
+from config import WHOOSH_ENABLED, TIME_FORMAT, IMAGE_STORAGE_PATH
 from text_utils import *
 
 import sys
@@ -52,6 +55,15 @@ category_tags = db.Table(
 )
 
 """
+    The many-to-many relationship between base users and comments. One user could have multiple comments, but one comment just maps to 2 users, fromuser and touser.
+"""
+user_comments = db.Table(
+    'user_comments',
+    db.Column('user_id', db.Integer, db.ForeignKey('base_user.user_id')),
+    db.Column('comment_id', db.Integer, db.ForeignKey('comment.comment_id'))
+)
+
+"""
     The base class for users.
     Experts and non-experts (who pay to talk to experts) inherit from this class. 
 """
@@ -72,9 +84,27 @@ class BaseUser(db.Model):
     company = db.Column(db.String(50), index = True)
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
+    phone_number = db.Column(db.String(20), index=True, unique=True)
+    comments = db.relationship('Comment', secondary=user_comments, backref=db.backref('base_user', lazy='dynamic'), lazy='dynamic')
+
+    def add_comment(self, comment):
+        if not self.has_comment(comment):
+            self.comments.append(comment)
+            return self
+
+    def remove_comment(self, comment):
+        if self.has_comment(comment):
+            self.comments.remove(comment)
+            return self
+
+    def has_comment(self, comment):
+        return self.comments.filter(user_comments.c.comment_id == comment.comment_id).count() > 0
 
     """
 	Serialize the current object to json
+    """
+    """
+    return full content including comments to meet user query
     """
     def serialize(self):
         return {
@@ -84,7 +114,30 @@ class BaseUser(db.Model):
 	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
 	    'company': self.company,
 	    'title': self.title,
-	    'about_me': self.about_me
+	    'about_me': self.about_me,
+		'phone_number': self.phone_number,
+        'comments': serialize_all(self.comments, Comment.serialize_s)
+	}
+
+	__mapper_args__ = {
+        'polymorphic_identity':'base_user',
+        'polymorphic_on':type,
+		'with_polymorphic':'*'
+    }
+
+	"""
+    return partial content excluding comments to meet comment query
+    """
+    def serialize_s(self):
+        return {
+            'user_id': self.user_id, 
+	    'name': self.name,
+            'email': self.email,
+	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
+	    'company': self.company,
+	    'title': self.title,
+	    'about_me': self.about_me,
+		'phone_number': self.phone_number
 	}
 
 """
@@ -93,7 +146,8 @@ class BaseUser(db.Model):
 class Customer(BaseUser):
     __tablename__ = 'customer'
     user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
-    phone_number = db.Column(db.String(20), index=True, unique=True)
+    #comment phone_number, move it to User class
+	#phone_number = db.Column(db.String(20), index=True, unique=True)
 
     following_topics = db.relationship(
 	'Topic',
@@ -165,7 +219,11 @@ class Expert(BaseUser):
     rating = db.Column(db.Float)  #rating of this expert based on the feedback from the customers
     needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
     serving_count = db.Column(db.Integer)  #times this expert served customers
-
+    profile_thumbnail_url = db.Column(db.String(250))
+    profile_image_url = db.Column(db.String(250))
+    profile_image_url = db.Column(db.String(250))
+    bio = db.Column(db.String(1000))
+    credits = db.Column(db.Integer)
     """
 	A one-to-many relationship exists between an expert and topics.
     """
@@ -177,6 +235,10 @@ class Expert(BaseUser):
         backref = db.backref('experts', lazy='dynamic'),
 	lazy = 'dynamic'
     )
+
+    __mapper_args__ = {
+        'polymorphic_identity':'expert',
+    }
 
     """
 	Remove a topic.
@@ -242,6 +304,15 @@ class Expert(BaseUser):
     def is_anonymous(self):
         return False
 
+	"""
+	Serialize the current object into json
+    """
+    def serialize(self):
+	json_obj = super(Expert, self).serialize()
+	json_obj['degree'] = self.degree
+	json_obj['serving_topics'] = serialize_all(self.serving_topics, Topic.serialize)
+        return json_obj
+		
     """
     def avatar(self, size):
         return 'http://www.gravatar.com/avatar/%s?d=mm&s=%d' % \
@@ -280,7 +351,7 @@ class Topic(db.Model):
     def serialize(topic):
 	return {
 	    'topic_id' : topic.topic_id,
-	    'title' : topic.title,
+        'title' : topic.title,
 	    'body' : topic.body,
 	    'timestamp' : topic.timestamp.strftime(TIME_FORMAT),
 	    'rate' : topic.rate,
@@ -304,3 +375,57 @@ class Category(db.Model):
 
 if enable_search:
     whooshalchemy.whoosh_index(app, Topic)
+
+"""
+    Represents the Comment object. One user could own multiple comments, and one comment just belongs to two users.
+"""
+class Comment(db.Model):
+    __tablename__ = 'comment'
+    comment_id = db.Column(db.Integer, primary_key=True)
+    comment_content = db.Column(db.String(1000))
+    users = db.relationship('BaseUser', secondary=user_comments, backref=db.backref('comment', lazy='dynamic'), lazy='dynamic')
+
+    def add_user(self, user):
+        if not self.has_user(user):
+            self.users.append(user)
+            return self
+
+    def remove_user(self, user):
+        if self.has_user(user):
+            self.users.remove(user)
+            return self
+
+    def has_user(self, user):
+        return self.users.filter(user_comments.c.user_id == user.user_id).count() > 0    
+
+    def serialize_s(self):
+        return {
+            'comment_id': self.comment_id,
+            'comment_content': self.comment_content
+    }
+
+    def serialize(self):
+        return {
+            'comment_id': self.comment_id,
+            'comment_content': self.comment_content,
+            'users': serialize_all(self.users, BaseUser.serialize_s)
+    }
+
+    def __repr__(self):
+        return '<Comment %r>' % (self.comment_content)
+
+"""
+    Represents the InstructionModule object.
+"""
+class Instruction(db.Model):
+    __tablename__ = 'instruction'
+    instruction_id = db.Column(db.Integer, primary_key=True)
+    header = db.Column(db.String(100))
+    image_url = db.Column(db.String(250))
+
+    def serialize(self):
+        return {
+            "instruction_id": self.instruction_id,
+            "header": self.header,
+			"image_url": IMAGE_STORAGE_PATH + self.image_url
+    }	
