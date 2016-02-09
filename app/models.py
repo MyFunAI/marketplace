@@ -1,13 +1,13 @@
 # -*- coding: utf8 -*-
 
-from hashlib import md5
-import re
-import json as simplejson
 from app import db
 from app import app
-from config import WHOOSH_ENABLED, TIME_FORMAT, IMAGE_STORAGE_PATH
+from config import WHOOSH_ENABLED, TIME_FORMAT, INSTRUCTION_IMAGE_PATH, CUSTOMER_TYPE, EXPERT_TYPE
+from hashlib import md5
+from model_utils import *
 from text_utils import *
-
+import json as simplejson
+import re
 import sys
 
 if sys.version_info >= (3, 0):
@@ -55,12 +55,15 @@ category_tags = db.Table(
 )
 
 """
-    The many-to-many relationship between base users and comments. One user could have multiple comments, but one comment just maps to 2 users, fromuser and touser.
+    The many-to-many relationship between people who comment and who are commented.
+    In our case, only experts can be commented, but both customers and experts can
+    make comments.
+
+    No customers have identical ids as experts. So this table has no duplicate rows.
 """
-user_comments = db.Table(
-    'user_comments',
-    db.Column('user_id', db.Integer, db.ForeignKey('base_user.user_id')),
-    db.Column('comment_id', db.Integer, db.ForeignKey('comment.comment_id'))
+commenters = db.Table('commenters',
+    db.Column('commenter_id', db.Integer, db.ForeignKey('base_user.id')),
+    db.Column('commentee_id', db.Integer, db.ForeignKey('base_user.id'))
 )
 
 """
@@ -84,27 +87,52 @@ class BaseUser(db.Model):
     company = db.Column(db.String(50), index = True)
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
-    phone_number = db.Column(db.String(20), index=True, unique=True)
-    comments = db.relationship('Comment', secondary=user_comments, backref=db.backref('base_user', lazy='dynamic'), lazy='dynamic')
+    type = db.Column(String(50))
 
-    def add_comment(self, comment):
-        if not self.has_comment(comment):
-            self.comments.append(comment)
+    """
+	Commenting is a self-referential relationship, which captures the sending and receiving ends of a comment. The content
+	of the comment is stored in class Comment.
+
+	The current user is the target user.
+	primaryjoin indicates the condition that links the left side entity (the commenter user) with the association table.
+	Note that because the commenters table is not a model there is a slightly odd syntax required to get to the field name.
+	secondaryjoin indicates the condition that links the right side entity (the commentee user) with the association table.
+
+	backref defines how this relationship will be accessed from the right side entity. We said that for a given user
+	the query named commentees returns all the right side users that have the target user on the left side.
+	The back reference will be called commenters and will return all the left side users that are linked to the target user
+	in the right side.
+    """
+    commentees = db.relationship(
+	'BaseUser', 
+	secondary = commenters,
+	primaryjoin = (commenters.c.commenter_id == user_id), 
+        secondaryjoin = (commenters.c.commentee_id == user_id), 
+        backref = db.backref('commenters', lazy='dynamic'), 
+        lazy='dynamic'
+    )
+
+    def comment(self, user):
+        if not self.has_commented(user):
+            self.commentees.append(user)
             return self
 
-    def remove_comment(self, comment):
-        if self.has_comment(comment):
-            self.comments.remove(comment)
+    def uncomment(self, user):
+        if self.has_commented(user):
+            self.commentees.remove(user)
             return self
 
-    def has_comment(self, comment):
-        return self.comments.filter(user_comments.c.comment_id == comment.comment_id).count() > 0
+    def has_commented(self, user):
+        return self.commentees.filter(commenters.c.commentee_id == user.user_id).count() > 0
+
+    """
+	Serialize comments
+    """
+    def serialize_comments(self):
+	pass
 
     """
 	Serialize the current object to json
-    """
-    """
-    return full content including comments to meet user query
     """
     def serialize(self):
         return {
@@ -114,31 +142,14 @@ class BaseUser(db.Model):
 	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
 	    'company': self.company,
 	    'title': self.title,
-	    'about_me': self.about_me,
-		'phone_number': self.phone_number,
-        'comments': serialize_all(self.comments, Comment.serialize_s)
+	    'about_me': self.about_me
 	}
 
-	__mapper_args__ = {
+    __mapper_args__ = {
         'polymorphic_identity':'base_user',
         'polymorphic_on':type,
-		'with_polymorphic':'*'
+	'with_polymorphic':'*'
     }
-
-	"""
-    return partial content excluding comments to meet comment query
-    """
-    def serialize_s(self):
-        return {
-            'user_id': self.user_id, 
-	    'name': self.name,
-            'email': self.email,
-	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
-	    'company': self.company,
-	    'title': self.title,
-	    'about_me': self.about_me,
-		'phone_number': self.phone_number
-	}
 
 """
     Customers pay expert to get services.
@@ -146,8 +157,12 @@ class BaseUser(db.Model):
 class Customer(BaseUser):
     __tablename__ = 'customer'
     user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
-    #comment phone_number, move it to User class
-	#phone_number = db.Column(db.String(20), index=True, unique=True)
+    #Experts do not provide a phone number to avoid direct contact between customers and experts
+    phone_number = db.Column(db.String(20), index=True, unique=True)
+
+    __mapper_args__ = {
+        'polymorphic_identity':'customer',
+    }
 
     following_topics = db.relationship(
 	'Topic',
@@ -196,6 +211,12 @@ class Customer(BaseUser):
 
     def is_paid(self, topic):
         return self.paid_topics.filter(paid_topics.c.topic_id == topic.topic_id).count() > 0
+
+    """
+	For Customer objects, this method only loads the comments this customer made.
+    """
+    def load_comments(self):
+	return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commenter_id == self.user_id).order_by(Comment.timestamp.desc())
  
     """
 	Serialize the current object into json
@@ -222,7 +243,7 @@ class Expert(BaseUser):
     profile_thumbnail_url = db.Column(db.String(250))
     profile_image_url = db.Column(db.String(250))
     profile_image_url = db.Column(db.String(250))
-    bio = db.Column(db.String(1000))
+    bio = db.Column(db.Text(1000))
     credits = db.Column(db.Integer)
     """
 	A one-to-many relationship exists between an expert and topics.
@@ -258,6 +279,12 @@ class Expert(BaseUser):
             self.serving_topics.append(topic)
             return self
 
+    """
+	Check if this expert is already serving this topic
+    """
+    def has_topic(self, topic):
+        return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
+
     def add_category(self, category):
         if not self.has_category(category):
             self.category_tags.append(category)
@@ -273,12 +300,23 @@ class Expert(BaseUser):
   
     def make_category(self, first_level_index, second_level_index):
         return Category(first_level_index, second_level_index)
- 
+
     """
-	Check if this expert is already serving this topic
+	For experts, they can comment or be commented by other experts.
+
+	@param forward
+		True: the current user is the commenting user, False: the current user is the commented user
+	@param src_user_type
+		1: customer, 2: expert
+	@return
     """
-    def has_topic(self, topic):
-        return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
+    def load_comments(self, forward = True, src_user_type = 1):
+	if forward:
+	    #Commenting other experts
+	    return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commenter_id == self.user_id).order_by(Comment.timestamp.desc())
+	else:
+	    #being commented by customers or experts
+	    return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commentee_id == self.user_id).filter(Comment.src_user_type == src_user_type).order_by(Comment.timestamp.desc())
 
     @staticmethod
     def make_unique_nickname(nickname):
@@ -343,6 +381,7 @@ class Topic(db.Model):
     timestamp = db.Column(db.DateTime)
     rate = db.Column(db.Float)  #how much this topic costs
     expert_id = db.Column(db.Integer, db.ForeignKey('expert.user_id'))
+    #rating = db.Column(db.Float) #the average customer rating on this topic 
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
@@ -351,7 +390,7 @@ class Topic(db.Model):
     def serialize(topic):
 	return {
 	    'topic_id' : topic.topic_id,
-        'title' : topic.title,
+            'title' : topic.title,
 	    'body' : topic.body,
 	    'timestamp' : topic.timestamp.strftime(TIME_FORMAT),
 	    'rate' : topic.rate,
@@ -378,41 +417,40 @@ if enable_search:
 
 """
     Represents the Comment object. One user could own multiple comments, and one comment just belongs to two users.
+    We only offer two commenting behaviors for the moment: customers comment experts, experts comment experts.
+
+    In an expert object, there are comments made on that expert by customers and other experts. Comments originating
+    from that expert are not saved in that expert object.
+
+    In a customer object, comments made by that customer are not present in the object.
 """
 class Comment(db.Model):
     __tablename__ = 'comment'
-    comment_id = db.Column(db.Integer, primary_key=True)
-    comment_content = db.Column(db.String(1000))
-    users = db.relationship('BaseUser', secondary=user_comments, backref=db.backref('comment', lazy='dynamic'), lazy='dynamic')
-
-    def add_user(self, user):
-        if not self.has_user(user):
-            self.users.append(user)
-            return self
-
-    def remove_user(self, user):
-        if self.has_user(user):
-            self.users.remove(user)
-            return self
-
-    def has_user(self, user):
-        return self.users.filter(user_comments.c.user_id == user.user_id).count() > 0    
-
-    def serialize_s(self):
-        return {
-            'comment_id': self.comment_id,
-            'comment_content': self.comment_content
-    }
+    """
+        TO-DO: could use a pairing function to compute an int key
+	    Currently, the comment_id is a string in the format 'src_user_id:dst_user_id', with the two parts indicating
+	    the user making the comment and the user being commented.
+    """
+    comment_id = db.Column(db.String, primary_key=True)
+    content = db.Column(db.Text(1000))
+    timestamp = db.Column(db.Date)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topic.topic_id'))
+    src_user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
+    dst_user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
+    src_user_type = db.Column(db.Integer)
+    dst_user_type = db.Column(db.Integer)
 
     def serialize(self):
         return {
             'comment_id': self.comment_id,
-            'comment_content': self.comment_content,
-            'users': serialize_all(self.users, BaseUser.serialize_s)
-    }
-
-    def __repr__(self):
-        return '<Comment %r>' % (self.comment_content)
+            'content': self.content,
+	    'timestamp': self.timestamp.strftime(DATE_FORMAT),
+	    'topic_id' : self.topic_id,
+	    'src_user_id' : self.src_user_id,
+	    'dst_user_id' : self.dst_user_id,
+    	    'src_user_type' : self.src_user_type,
+    	    'dst_user_type' : self.dst_user_type
+        }
 
 """
     Represents the InstructionModule object.
@@ -427,5 +465,5 @@ class Instruction(db.Model):
         return {
             "instruction_id": self.instruction_id,
             "header": self.header,
-			"image_url": IMAGE_STORAGE_PATH + self.image_url
-    }	
+	    "image_url": INSTRUCTION_IMAGE_PATH + self.image_url
+    }

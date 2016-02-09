@@ -1,5 +1,7 @@
 # -*- coding: utf8 -*-
+import datetime
 import os
+import pytz
 import sys
 
 """
@@ -64,11 +66,20 @@ MAX_SEARCH_RESULTS = 50
 # Expert category file path
 # EXPERT_CATEGORY_PATH = './app/resources/expert_categories.txt'
 EXPERT_CATEGORY_PATH = os.path.join(basedir, 'app/resources/expert_categories.txt')
-IMAGE_STORAGE_PATH = '/api/v1/resources/image_storage/'
+INSTRUCTION_IMAGE_PATH = '/api/v1/resources/images/instruction/'
+USER_IMAGE_PATH = '/api/v1/resources/images/user/'
 CATEGORY_ID_MULTIPLIER = 100
 
 EMPTY_STRING = ''
 EMPTY_DICT = {}
 
 TIME_FORMAT = '%Y-%m-%d %H:%M:%S %f'
+DATE_FORMAT = '%Y-%m-%d'
+
+CUSTOMER_TYPE = 1
+EXPERT_TYPE = 2
+
+#EPOCH = datetime.datetime(2016, 1, 1, tzinfo = pytz.utc)
+WORKER_ID = 1
+DATA_CENTER_ID = 1
 

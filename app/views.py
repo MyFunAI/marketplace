@@ -3,7 +3,7 @@ from config import *
 from db_utils import *
 from file_utils import *
 from flask import render_template, session, url_for, request, g, jsonify
-from .models import Customer, Expert, Topic, Category
+from .models import Customer, Expert, Topic, Category, Comment
 
 @app.route('/')
 @app.route('/index')
@@ -96,6 +96,14 @@ def topic(topic_id):
     else:
         return jsonify({'Topic':topic.serialize(topic)})
 
+@app.route('/api/v1/topic/title/<topic_id>/', methods = ['GET'])
+def topic_title(topic_id):
+    topic = Topic.query.filter_by(topic_id = topic_id).first()
+    if topic is None:
+        return jsonify({'topic_id':topic_id, 'topic_title':''})
+    else:
+        return jsonify({'topic_id':topic_id, 'topic_title':topic.title})
+
 """
 	To get instruction 
 """
@@ -117,7 +125,8 @@ def category(category_id):
 	return jsonify({'Category':''})
     else:
         return jsonify({'Category':category.serialize(category)})
-		
+
+	
 @app.route('/test')
 def test():
     print session['categories']
