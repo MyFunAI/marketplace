@@ -3,6 +3,9 @@ import time
 import logging
 import re
 
+"""
+	ID creator that builds a unique 64-bit id via the Twitter snowflake algorithm.
+"""
 class IDWorker:
 	def __init__(self, worker_id, data_center_id):
 		self.worker_id = worker_id

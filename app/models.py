@@ -2,7 +2,9 @@
 
 from app import db
 from app import app
-from config import WHOOSH_ENABLED, TIME_FORMAT, INSTRUCTION_IMAGE_PATH, CUSTOMER_TYPE, EXPERT_TYPE
+from config import *
+from datetime import datetime
+#from flask import render_template, flash, redirect, session, url_for, request, g, jsonify
 from hashlib import md5
 from model_utils import *
 from text_utils import *
@@ -17,17 +19,6 @@ else:
     if enable_search:
         import flask.ext.whooshalchemy as whooshalchemy
 
-"""
-    Not sure if we really need following_topics and paid_topics. However, using only one
-    caused errors in the unit test. Maybe using two is the right way. We should re-visit this
-    later on.
-"""
-following_topics = db.Table(
-    'following_topics',
-    db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
-    db.Column('topic_id', db.Integer, db.ForeignKey('topic.topic_id'))
-)
-
 paid_topics = db.Table(
     'paid_topics',
     db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
@@ -35,14 +26,15 @@ paid_topics = db.Table(
 )
 
 """
-    The many-to-many relationship between customers and experts. A customer following an expert
-    means that customer shows interests in that expert. That does not mean the customer is
-    requesting service from that expert. This serves as a bookmarking function.
+    The many-to-many relationship between customers/experts and experts. A customer/expert
+    following an expert means that customer/expert shows interests in that expert. That does
+    not mean the customer is requesting service from that expert. This serves as a bookmarking
+    function.
 """
-following_experts = db.Table(
-    'following_experts',
-    db.Column('customer_id', db.Integer, db.ForeignKey('customer.user_id')),
-    db.Column('expert_id', db.Integer, db.ForeignKey('expert.user_id'))
+followers = db.Table(
+    'followers',
+    db.Column('follower_id', db.Integer, db.ForeignKey('base_user.user_id')),
+    db.Column('followee_id', db.Integer, db.ForeignKey('base_user.user_id'))
 )
 
 """
@@ -55,31 +47,13 @@ category_tags = db.Table(
 )
 
 """
-    The many-to-many relationship between people who comment and who are commented.
-    In our case, only experts can be commented, but both customers and experts can
-    make comments.
-
-    No customers have identical ids as experts. So this table has no duplicate rows.
-"""
-commenters = db.Table('commenters',
-    db.Column('commenter_id', db.Integer, db.ForeignKey('base_user.id')),
-    db.Column('commentee_id', db.Integer, db.ForeignKey('base_user.id'))
-)
-
-"""
     The base class for users.
-    Experts and non-experts (who pay to talk to experts) inherit from this class. 
+    Experts and non-experts (who pay to talk to experts) inherit from this class.
+
+    Actual usage will not instantiate this class, and will use Customer and Expert class only.
 """
 class BaseUser(db.Model):
     __tablename__ = 'base_user'
-    """
-    categories = db.relationship('User',
-                               secondary=followers,
-                               primaryjoin=(followers.c.follower_id == id),
-                               secondaryjoin=(followers.c.followed_id == id),
-                               backref=db.backref('followers', lazy='dynamic'),
-                               lazy='dynamic')
-    """
     user_id = db.Column(db.Integer, index = True, primary_key = True)
     email = db.Column(db.String(120), index=True, unique=True)
     last_seen = db.Column(db.DateTime)
@@ -87,49 +61,34 @@ class BaseUser(db.Model):
     company = db.Column(db.String(50), index = True)
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
-    type = db.Column(String(50))
+    type = db.Column(db.String(20))
+
 
     """
-	Commenting is a self-referential relationship, which captures the sending and receiving ends of a comment. The content
-	of the comment is stored in class Comment.
-
-	The current user is the target user.
-	primaryjoin indicates the condition that links the left side entity (the commenter user) with the association table.
-	Note that because the commenters table is not a model there is a slightly odd syntax required to get to the field name.
-	secondaryjoin indicates the condition that links the right side entity (the commentee user) with the association table.
-
-	backref defines how this relationship will be accessed from the right side entity. We said that for a given user
-	the query named commentees returns all the right side users that have the target user on the left side.
-	The back reference will be called commenters and will return all the left side users that are linked to the target user
-	in the right side.
+	Users that the current user shows interests. The current user is the target user, i.e., this user object.
+	Showing interests is not the same as requesting services.
     """
-    commentees = db.relationship(
+    followees = db.relationship(
 	'BaseUser', 
-	secondary = commenters,
-	primaryjoin = (commenters.c.commenter_id == user_id), 
-        secondaryjoin = (commenters.c.commentee_id == user_id), 
-        backref = db.backref('commenters', lazy='dynamic'), 
+	secondary = followers,
+	primaryjoin = (followers.c.follower_id == user_id), 
+        secondaryjoin = (followers.c.followee_id == user_id), 
+        backref = db.backref('followers', lazy='dynamic'), 
         lazy='dynamic'
     )
 
-    def comment(self, user):
-        if not self.has_commented(user):
-            self.commentees.append(user)
+    def is_following_expert(self, user):
+        return user.is_expert() and (self.followees.filter(followers.c.followee_id == user.user_id).count() > 0)
+
+    def follow_expert(self, user):
+        if user.is_expert() and not self.is_following_expert(user):
+            self.followees.append(user)
             return self
 
-    def uncomment(self, user):
-        if self.has_commented(user):
-            self.commentees.remove(user)
+    def unfollow_expert(self, user):
+        if user.is_expert() and self.is_following_expert(user):
+            self.followees.remove(user)
             return self
-
-    def has_commented(self, user):
-        return self.commentees.filter(commenters.c.commentee_id == user.user_id).count() > 0
-
-    """
-	Serialize comments
-    """
-    def serialize_comments(self):
-	pass
 
     """
 	Serialize the current object to json
@@ -152,80 +111,74 @@ class BaseUser(db.Model):
     }
 
 """
-    Customers pay expert to get services.
+    Customers pay experts to get services.
 """
 class Customer(BaseUser):
     __tablename__ = 'customer'
-    user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'), primary_key = True)
     #Experts do not provide a phone number to avoid direct contact between customers and experts
-    phone_number = db.Column(db.String(20), index=True, unique=True)
+    phone_number = db.Column(db.String(20), index = True, unique = True)
 
     __mapper_args__ = {
         'polymorphic_identity':'customer',
     }
 
-    following_topics = db.relationship(
-	'Topic',
-	secondary = following_topics,
-        backref = db.backref('following_customers', lazy = 'dynamic'),
+    def is_expert(self):
+	return False
+
+    """
+	One to many relationship. One customer could have multiple topic requests.
+    """
+    topic_requests = db.relationship(
+	'TopicRequest',
+	backref = 'customer',
 	lazy = 'dynamic'
     )
 
-    paid_topics = db.relationship(
-	'Topic',
-	secondary = paid_topics,
-        backref = db.backref('paid_customers', lazy='dynamic'),
-	lazy = 'dynamic'
-    )
     """
-    following_experts = db.relationship(
-	'Expert',
-	secondary = following_experts,
-        backref = db.backref('following_customers', lazy='dynamic'),
-	lazy = 'dynamic'
-    )
+	Load all requests of the current customer from the db.
+	TO-DO: add caching to avoid redundant db access.
     """
-
-    def follow_topic(self, topic):
-        if not self.is_following(topic):
-            self.following_topics.append(topic)
-            return self
-
-    def unfollow_topic(self, topic):
-        if self.is_following(topic):
-            self.following_topics.remove(topic)
-            return self
-
-    def add_paid_topic(self, topic):
-        if not self.is_paid(topic):
-            self.paid_topics.append(topic)
-            return self
-
-    def remove_paid_topic(self, topic):
-        if self.is_paid(topic):
-            self.paid_topics.remove(topic)
-            return self
-
-    def is_following(self, topic):
-        return self.following_topics.filter(following_topics.c.topic_id == topic.topic_id).count() > 0
-
-    def is_paid(self, topic):
-        return self.paid_topics.filter(paid_topics.c.topic_id == topic.topic_id).count() > 0
+    def load_topic_requests(self):
+	self.topic_requests = TopicRequest.query.filter_by(customer_id = self.user_id).all()
 
     """
-	For Customer objects, this method only loads the comments this customer made.
+	Get all completed topic requests of this customer.
+	A topic goes through all stages except for the 'customer rating' and is then marked 'completed'.
     """
-    def load_comments(self):
-	return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commenter_id == self.user_id).order_by(Comment.timestamp.desc())
- 
+    def get_completed_topic_requests(self):
+	if self.topic_requests == None:
+	    self.load_topic_requests()
+	return [request for request in self.topic_requests if request.is_completed()]	
+
     """
-	Serialize the current object into json
+	Get all ongoing topic requests of this customer.
+	An ongoing request is one that has not passed the 'served' stage.
+    """
+    def get_ongoing_topic_requests(self):
+	if self.topic_requests == None:
+	    self.load_topic_requests()
+	return [request for request in self.topic_requests if not request.is_completed()]	
+
+    """
+	Check if the current customer can request the given topic.
+	@param topic - an instance of a Topic class
+	@return True - can; False - cannot
+    """
+    def can_request_topic(self, topic):
+        for request in self.ongoing_topic_requests:
+	    if request.topic_id == topic.topic_id:
+		return False
+	return True
+
+    """
+	Serialize the current object into json. All fields of the object are fully rendered as well.
     """
     def serialize(self):
 	json_obj = super(Customer, self).serialize()
 	json_obj['phone_number'] = self.phone_number
-	json_obj['following_topics'] = serialize_all(self.following_topics, Topic.serialize)
-	json_obj['paid_topics'] = serialize_all(self.paid_topics, Topic.serialize)
+	json_obj['completed_topic_requests'] = [r.serialize() for r in self.get_completed_topic_requests()] 
+	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.get_ongoing_topic_requests()] 
         return json_obj
 
 """
@@ -238,19 +191,18 @@ class Expert(BaseUser):
     university = db.Column(db.String(50))  #University name
     major = db.Column(db.String(50))  #degree, university and major are usually used together
     rating = db.Column(db.Float)  #rating of this expert based on the feedback from the customers
-    needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
-    serving_count = db.Column(db.Integer)  #times this expert served customers
+    #needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
+    #serving_count = db.Column(db.Integer)  #times this expert served customers
     profile_thumbnail_url = db.Column(db.String(250))
     profile_image_url = db.Column(db.String(250))
-    profile_image_url = db.Column(db.String(250))
-    bio = db.Column(db.Text(1000))
+    bio = db.Column(db.Text(2000))
     credits = db.Column(db.Integer)
     """
 	A one-to-many relationship exists between an expert and topics.
     """
     serving_topics = db.relationship('Topic', backref='expert', lazy='dynamic')
 
-    category_tags = db.relationship(
+    tags = db.relationship(
 	'Category',
 	secondary = category_tags,
         backref = db.backref('experts', lazy='dynamic'),
@@ -260,6 +212,9 @@ class Expert(BaseUser):
     __mapper_args__ = {
         'polymorphic_identity':'expert',
     }
+
+    def is_expert(self):
+	return True
 
     """
 	Remove a topic.
@@ -285,38 +240,53 @@ class Expert(BaseUser):
     def has_topic(self, topic):
         return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
 
-    def add_category(self, category):
-        if not self.has_category(category):
-            self.category_tags.append(category)
+    def add_tag(self, tag):
+        if not self.has_tag(tag):
+            self.tags.append(tag)
             return self
 
-    def remove_category(self, category):
-        if self.has_category(category):
-            self.category_tags.remove(category)
+    def remove_tag(self, tag):
+        if self.has_tag(tag):
+            self.tags.remove(tag)
             return self
 
-    def has_category(self, category):
-        return self.category_tags.filter(category_tags.c.category_id == category.category_id).count() > 0
-  
-    def make_category(self, first_level_index, second_level_index):
-        return Category(first_level_index, second_level_index)
+    """
+	@param tag - a Category object
+    """
+    def has_tag(self, tag):
+        return self.tags.filter(category_tags.c.category_id == tag.category_id).count() > 0
 
     """
-	For experts, they can comment or be commented by other experts.
-
-	@param forward
-		True: the current user is the commenting user, False: the current user is the commented user
-	@param src_user_type
-		1: customer, 2: expert
-	@return
+	Search the tag given the two-level indices.
+	TO-DO:
+	    Find the most matching category given textual description of the skills. This is the real-life
+	    scenarios where our marketplace users simply search expert skills.
+		
+	@param first_level_index
+	@param second_level_index
     """
-    def load_comments(self, forward = True, src_user_type = 1):
-	if forward:
-	    #Commenting other experts
-	    return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commenter_id == self.user_id).order_by(Comment.timestamp.desc())
-	else:
-	    #being commented by customers or experts
-	    return Comment.query.join(commenters, (commenters.c.commenter_id == Comment.src_user_id)).filter(commenters.c.commentee_id == self.user_id).filter(Comment.src_user_type == src_user_type).order_by(Comment.timestamp.desc())
+    def has_tag(self, first_level_index, second_level_index):
+        category_id = build_category_id(first_level_index, second_level_index)
+        return self.tags.filter(category_tags.c.category_id == category_id).count() > 0
+ 
+    def build_category(self, first_level_index, second_level_index):
+        return Category(build_category_id(first_level_index, second_level_index))
+
+    """
+	Comments are associated with topic requests, which can be found in topic objects.
+	To fetch the comments, go through the following steps
+	1) Start from each of the topics being served by the current expert
+	2) Get all the topic requests of each topic
+	3) If that topic request has a comment associated with it, retrieve it
+	@return a list of comments
+    """
+    def get_comments(self):
+	comments = []
+	for topic in self.serving_topics.all():
+	    for request in topic.topic_requests:
+		if request.is_rated():
+		    comments.append(request.comment)
+	return comments
 
     @staticmethod
     def make_unique_nickname(nickname):
@@ -348,9 +318,17 @@ class Expert(BaseUser):
     def serialize(self):
 	json_obj = super(Expert, self).serialize()
 	json_obj['degree'] = self.degree
-	json_obj['serving_topics'] = serialize_all(self.serving_topics, Topic.serialize)
+	json_obj['serving_topics'] = [r.serialize() for r in self.serving_topics]
+        json_obj['university'] = self.university 
+	json_obj['major'] = self.major
+        json_obj['rating'] = self.rating
+        json_obj['profile_thumbnail_url'] = self.profile_thumbnail_url
+	json_obj['profile_image_url'] = self.profile_image_url
+        json_obj['bio'] = self.bio
+	json_obj['credits'] = self.credits
+	json_obj['comments'] = [c.serialize() for c in get_comments()]
         return json_obj
-		
+
     """
     def avatar(self, size):
         return 'http://www.gravatar.com/avatar/%s?d=mm&s=%d' % \
@@ -370,31 +348,154 @@ class Expert(BaseUser):
     topics, the service of each of which is in the form of an in-app audio conversation.
 
     Intuitively, a topic is a service focusing on a specific area that an expert provides.
+    Only customers can give ratings on topics they are served. Each topic has an average
+    rating from all its serving topic.
 """
 class Topic(db.Model):
     __tablename__ = 'topic'
     __searchable__ = ['body']
 
     topic_id = db.Column(db.Integer, primary_key=True)
-    body = db.Column(db.String(500))
+    body = db.Column(db.Text(1000))
     title = db.Column(db.String(100))
-    timestamp = db.Column(db.DateTime)
+    created_time = db.Column(db.DateTime) #the time an expert posts this topic
     rate = db.Column(db.Float)  #how much this topic costs
     expert_id = db.Column(db.Integer, db.ForeignKey('expert.user_id'))
-    #rating = db.Column(db.Float) #the average customer rating on this topic 
+
+    """
+	One-to-many relationship between Topic and TopicRequests
+    """
+    topic_requests = db.relationship('TopicRequest', backref = 'topic', lazy='dynamic')
 
     def __repr__(self):  # pragma: no cover
         return '<Topic %r>' % (self.body)
 
-    @staticmethod
-    def serialize(topic):
+    """
+	TO-DO
+	Compute an average rating for this topic based on the customers' ratings.
+        Topic has a paid_customers fields
+	@return
+    """
+    def compute_rating(self):
+	s = 0.0
+	if self.topic_requests:
+	    n = 0
+	    for r in self.topic_requests:
+		if r.is_rated():
+		    n += 1
+		    s += r.comment.rating
+	    if n > 0:
+		s /= n
+	return s
+
+    def serialize(self):
 	return {
-	    'topic_id' : topic.topic_id,
-            'title' : topic.title,
-	    'body' : topic.body,
-	    'timestamp' : topic.timestamp.strftime(TIME_FORMAT),
-	    'rate' : topic.rate,
-	    'expert_id' : topic.expert_id
+	    'topic_id' : self.topic_id,
+            'title' : self.title,
+	    'body' : self.body,
+	    'created_time' : self.created_time.strftime(TIME_FORMAT),
+	    'rate' : self.rate,
+	    'expert_id' : self.expert_id,
+	    'average_rating' : self.compute_rating()
+	}
+
+"""
+    One-to-many relationship between Customer and TopicRequest.
+    One-to-many relationship between Topic and TopicRequest.
+
+    A topic field is added automatically by the backref in class Topic.
+    A customer can request the same topic multiple times (not at the same time though), because
+    one service may not fully solve the problems of that customer.
+"""
+class TopicRequest(db.Model):
+    __tablename__ = 'topic_request'
+    request_id = db.Column(db.Integer, primary_key = True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.user_id'))
+    topic_id = db.Column(db.Integer, db.ForeignKey('topic.topic_id'))
+    request_stage = db.Column(db.Integer)
+    topic_requested_time = db.Column(db.DateTime) 
+    topic_accepted_time = db.Column(db.DateTime)
+    topic_paid_time = db.Column(db.DateTime)
+    topic_scheduled_time = db.Column(db.DateTime)
+    topic_served_time = db.Column(db.DateTime)
+    topic_rated_time = db.Column(db.DateTime)
+
+    """
+	One to one relationship between TopicRequest and Comment
+    """
+    comment = db.relationship('Comment', uselist = False, backref = 'topic_request')
+
+    """
+	Call this method when a TopicRequest object is created
+    """
+    def init_stage(self):
+	self.request_stage = 1
+	self.topic_requested_time = datetime.utcnow() 
+
+    """
+	Get the current stage of this request by the corresponding customer
+    """
+    def get_stage(self):
+	if self.request_stage & TOPIC_REQUESTED_MASK:
+	    return TOPIC_REQUESTED
+	elif self.request_stage & TOPIC_ACCEPTED_MASK:
+	    return TOPIC_ACCEPTED
+	elif self.request_stage & TOPIC_PAID_MASK:
+	    return TOPIC_PAID
+	elif self.request_stage & TOPIC_SCHEDULED_MASK:
+	    return TOPIC_SCHEDULED
+	elif self.request_stage & TOPIC_SERVED_MASK:
+	    return TOPIC_SERVED
+	elif self.request_stage & TOPIC_RATED_MASK:
+	    return TOPIC_RATED
+	else:
+	    return TOPIC_BAD_STAGE 
+
+    """
+	Move the counter to the next stage. Called after one stage is completed.
+    """
+    def move_to_next_stage(self):
+	self.request_stage = self.request_stage << 1
+	t = datetime.utcnow()
+	if self.request_stage & TOPIC_ACCEPTED_MASK:
+	    self.topic_accepted_time = t
+	elif self.request_stage & TOPIC_PAID_MASK:
+	    self.topic_paid_time = t
+	elif self.request_stage & TOPIC_SCHEDULED_MASK:
+	    self.topic_scheduled_time = t
+	elif self.request_stage & TOPIC_SERVED_MASK:
+	    self.topic_served_time = t
+	elif self.request_stage & TOPIC_RATED_MASK:
+	    self.topic_rated_time = t
+	else:
+	    self.topic_rated_time = t 
+	return self.request_stage
+
+    """
+	@return True - completed; False - still going on
+    """
+    def is_completed(self):
+	return self.get_stage() >= TOPIC_SERVED
+
+    """
+	@return True - rated and commented; False - not yet
+    """
+    def is_rated(self):
+	return self.get_stage() >= TOPIC_RATED
+
+    def serialize(self):
+	return {
+	    'request_id': self.request_id,
+            'customer_id': self.customer_id,
+	    'topic': self.topic.serialize(),
+	    'request_stage': self.request_stage,
+	    'topic_requested_time': self.topic_requested_time,
+	    'topic_accepted_time': self.topic_accepted_time,
+	    'topic_paid_time': self.topic_paid_time,
+	    'topic_scheduled_time': self.topic_scheduled_time,
+	    'topic_served_time': self.topic_served_time,
+	    'topic_rated_time': self.topic_rated_time,
+	    'topic_comment': self.comment.serialize()
 	}
 
 """
@@ -404,52 +505,71 @@ class Topic(db.Model):
 
     The first level category index can be obtained by category_id / 100
     The second level category index can be obtained by category_id % 100
+
+    TO-DO: enrich the class with textual info about the categories
 """
 class Category(db.Model):
     __tablename__ = 'category'
     category_id = db.Column(db.Integer, primary_key=True) 
 
-    def __init__(self, first_level_index, second_level_index):
-	self.category_id = first_level_index * 100 + second_level_index
+    def serialize(self):
+	first_level_index = get_first_level_category_index(self.category_id)
+        second_level_index = get_second_level_category_index(self.category_id)
+	return {
+	    'category_id' : self.category_id,
+	    'first_level_index' : first_level_index,
+	    'second_level_index' : second_level_index
+	}
 
 if enable_search:
     whooshalchemy.whoosh_index(app, Topic)
 
 """
-    Represents the Comment object. One user could own multiple comments, and one comment just belongs to two users.
-    We only offer two commenting behaviors for the moment: customers comment experts, experts comment experts.
+    A comment corresponds to a topic request object. A customer can request the same topic multiple times (not
+    at the same time though), and thus comment on the service multiple times.
 
-    In an expert object, there are comments made on that expert by customers and other experts. Comments originating
-    from that expert are not saved in that expert object.
-
-    In a customer object, comments made by that customer are not present in the object.
+    This class wraps the comments from customers to experts. A topic_request field is added automatically by the
+    backref in TopicRequest. 
 """
 class Comment(db.Model):
     __tablename__ = 'comment'
-    """
-        TO-DO: could use a pairing function to compute an int key
-	    Currently, the comment_id is a string in the format 'src_user_id:dst_user_id', with the two parts indicating
-	    the user making the comment and the user being commented.
-    """
-    comment_id = db.Column(db.String, primary_key=True)
+    comment_id = db.Column(db.String, primary_key = True)
     content = db.Column(db.Text(1000))
-    timestamp = db.Column(db.Date)
-    topic_id = db.Column(db.Integer, db.ForeignKey('topic.topic_id'))
-    src_user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
-    dst_user_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
-    src_user_type = db.Column(db.Integer)
-    dst_user_type = db.Column(db.Integer)
+    request_id = db.Column(db.Integer, db.ForeignKey('topic_request.request_id'))
+    rating = db.Column(db.Float)
 
-    def serialize(self):
+    def serialize(self.):
         return {
             'comment_id': self.comment_id,
             'content': self.content,
-	    'timestamp': self.timestamp.strftime(DATE_FORMAT),
-	    'topic_id' : self.topic_id,
-	    'src_user_id' : self.src_user_id,
-	    'dst_user_id' : self.dst_user_id,
-    	    'src_user_type' : self.src_user_type,
-    	    'dst_user_type' : self.dst_user_type
+	    'request_id': self.request_id,
+	    'rating': self.rating
+        }
+
+"""
+    This class wraps the comments from experts to experts. Such comments are on an invitation basis only.
+
+    TO-DO: to be implemented after the topic-based comments are running normally.
+"""
+class InvitedComment(db.Model):
+    __tablename__ = 'invited_comment'
+    comment_id = db.Column(db.String, primary_key = True)
+    content = db.Column(db.Text(1000))
+    invited_time = db.Column(db.DateTime)
+    commented_time = db.Column(db.DateTime)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.user_id'))
+    expert_id = db.Column(db.Integer, db.ForeignKey('expert.user_id'))
+    is_commented = db.Column(db.Boolean)    
+
+    def serialize(self):
+        return {
+            'comment_id' : self.comment_id,
+            'comment' : self.comment,
+            'invited_time' : self.invited_time.strftime(DATE_FORMAT),
+            'commented_time' : self.commented_time.strftime(DATE_FORMAT),
+	    'customer_id' : self.customer_id,
+	    'expert_id' : self.expert_id,
+	    'is_commented' : self.is_commented
         }
 
 """
@@ -466,4 +586,5 @@ class Instruction(db.Model):
             "instruction_id": self.instruction_id,
             "header": self.header,
 	    "image_url": INSTRUCTION_IMAGE_PATH + self.image_url
-    }
+        }
+
