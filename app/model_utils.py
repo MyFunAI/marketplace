@@ -7,7 +7,6 @@ from IDGenerator import *
 #from .models import BaseUser, Comment, Customer, Expert, Topic, Category, Instruction
 
 import codecs
-import datetime
 import json
 import os
 
@@ -23,7 +22,7 @@ def make_user_id():
     #max_user_id = db.session.query(db.func.max(User.numLogins)).scalar()
     return user_id_handler.get_id()
 
-def build_category_id(first_level_index, seconde_level_index):
+def build_category_id(first_level_index, second_level_index):
     return first_level_index * 100 + second_level_index
 
 def get_first_level_category_index(category_id):
@@ -31,3 +30,4 @@ def get_first_level_category_index(category_id):
 
 def get_second_level_category_index(category_id):
     return category_id % 100
+

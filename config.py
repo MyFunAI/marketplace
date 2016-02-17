@@ -1,5 +1,4 @@
 # -*- coding: utf8 -*-
-import datetime
 import os
 import pytz
 import sys
@@ -97,5 +96,4 @@ TOPIC_PAID_MASK = 1 << (TOPIC_PAID - 1)
 TOPIC_SCHEDULED_MASK = 1 << (TOPIC_SCHEDULED - 1)
 TOPIC_SERVED_MASK = 1 << (TOPIC_SERVED - 1)
 TOPIC_RATED_MASK = 1 << (TOPIC_RATED - 1)
-
 

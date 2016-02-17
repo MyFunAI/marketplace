@@ -91,6 +91,18 @@ class BaseUser(db.Model):
             return self
 
     """
+	Get the number of experts the current user is interested in.
+    """
+    def get_followee_count(self):
+	return self.followees.count()
+
+    """
+	Get the number of people that show interests on the current user.
+    """
+    def get_follower_count(self):
+	return self.followers.count()
+
+    """
 	Serialize the current object to json
     """
     def serialize(self):
@@ -128,6 +140,9 @@ class Customer(BaseUser):
 
     """
 	One to many relationship. One customer could have multiple topic requests.
+	Ongoing and completed requests are mingled together.
+	An ongoing request is one that has not passed the 'served' stage.
+	A topic goes through all stages except for the 'customer rating' and is then marked 'completed'.
     """
     topic_requests = db.relationship(
 	'TopicRequest',
@@ -136,40 +151,59 @@ class Customer(BaseUser):
     )
 
     """
-	Load all requests of the current customer from the db.
-	TO-DO: add caching to avoid redundant db access.
+    completed_topic_requests = db.relationship(
+	'TopicRequest',
+	backref = 'completed_customer',
+	lazy = 'dynamic'
+    )
     """
-    def load_topic_requests(self):
-	self.topic_requests = TopicRequest.query.filter_by(customer_id = self.user_id).all()
+
+    #def load_topic_requests(self):
+	#self.topic_requests = TopicRequest.query.filter_by(customer_id = self.user_id).all()
+
+    def get_ongoing_requests_by_topic(self, topic):
+        topics = self.topic_requests.filter_by(topic_id = topic.topic_id).all()
+	if topics:
+	    return [topic for topic in topics if not topic.is_completed()]
+	else:
+	    return []
 
     """
-	Get all completed topic requests of this customer.
-	A topic goes through all stages except for the 'customer rating' and is then marked 'completed'.
+	Check if the current customer can request the given topic, i.e., the topic is not already being
+	requested by the current customer.
+
+	@param topic - the topic being requested, an instance of a Topic class
     """
-    def get_completed_topic_requests(self):
-	if self.topic_requests == None:
-	    self.load_topic_requests()
-	return [request for request in self.topic_requests if request.is_completed()]	
+    def is_topic_being_requested(self, topic):
+        #return self.ongoing_topic_requests.filter_by(topic_id = topic.topic_id).count() > 0
+        return len(self.get_ongoing_requests_by_topic(topic)) > 0
 
     """
-	Get all ongoing topic requests of this customer.
-	An ongoing request is one that has not passed the 'served' stage.
+	Remove a topic request from the ongoing request list.
+	TO-DO: add more check conditions, e.g., a request can be dropped if it is in certain stages.
+	@param topic - a Topic instance
     """
-    def get_ongoing_topic_requests(self):
-	if self.topic_requests == None:
-	    self.load_topic_requests()
-	return [request for request in self.topic_requests if not request.is_completed()]	
+    def remove_topic_request(self, topic):
+        #r = self.ongoing_topic_requests.filter_by(topic_id = topic.topic_id).first()
+        ongoing_topics = self.get_ongoing_requests_by_topic(topic)
+	if len(ongoing_topics) > 0:
+            self.topic_requests.remove(ongoing_topics[0])
+            return self
 
     """
-	Check if the current customer can request the given topic.
-	@param topic - an instance of a Topic class
-	@return True - can; False - cannot
+	Request a topic, adding it to the ongoing request list.
+	@param topic - a Topic instance
     """
-    def can_request_topic(self, topic):
-        for request in self.ongoing_topic_requests:
-	    if request.topic_id == topic.topic_id:
-		return False
-	return True
+    def add_topic_request(self, topic):
+        if not self.is_topic_being_requested(topic):
+	    r = TopicRequest(
+    		customer_id = self.user_id,
+    		topic_id = topic.topic_id,
+		topic = topic
+	    )
+	    r.init_stage()
+            self.topic_requests.append(r)
+            return self
 
     """
 	Serialize the current object into json. All fields of the object are fully rendered as well.
@@ -177,8 +211,8 @@ class Customer(BaseUser):
     def serialize(self):
 	json_obj = super(Customer, self).serialize()
 	json_obj['phone_number'] = self.phone_number
-	json_obj['completed_topic_requests'] = [r.serialize() for r in self.get_completed_topic_requests()] 
-	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.get_ongoing_topic_requests()] 
+	json_obj['completed_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if r.is_completed()] 
+	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if not r.is_completed()] 
         return json_obj
 
 """
@@ -251,23 +285,20 @@ class Expert(BaseUser):
             return self
 
     """
-	@param tag - a Category object
-    """
-    def has_tag(self, tag):
-        return self.tags.filter(category_tags.c.category_id == tag.category_id).count() > 0
-
-    """
-	Search the tag given the two-level indices.
+	Search the tag given a Category object or the two-level indices.
 	TO-DO:
 	    Find the most matching category given textual description of the skills. This is the real-life
 	    scenarios where our marketplace users simply search expert skills.
-		
+	@param tag - a Category object
 	@param first_level_index
 	@param second_level_index
     """
-    def has_tag(self, first_level_index, second_level_index):
-        category_id = build_category_id(first_level_index, second_level_index)
-        return self.tags.filter(category_tags.c.category_id == category_id).count() > 0
+    def has_tag(self, tag = None, first_level_index = -1, second_level_index = -1):
+	if tag:
+            return self.tags.filter(category_tags.c.category_id == tag.category_id).count() > 0
+	else:
+            category_id = build_category_id(first_level_index, second_level_index)
+            return self.tags.filter(category_tags.c.category_id == category_id).count() > 0
  
     def build_category(self, first_level_index, second_level_index):
         return Category(build_category_id(first_level_index, second_level_index))
@@ -409,11 +440,11 @@ class Topic(db.Model):
 """
 class TopicRequest(db.Model):
     __tablename__ = 'topic_request'
-    request_id = db.Column(db.Integer, primary_key = True)
+    request_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.user_id'))
     topic_id = db.Column(db.Integer, db.ForeignKey('topic.topic_id'))
     request_stage = db.Column(db.Integer)
-    topic_requested_time = db.Column(db.DateTime) 
+    topic_requested_time = db.Column(db.DateTime)
     topic_accepted_time = db.Column(db.DateTime)
     topic_paid_time = db.Column(db.DateTime)
     topic_scheduled_time = db.Column(db.DateTime)
@@ -429,7 +460,7 @@ class TopicRequest(db.Model):
 	Call this method when a TopicRequest object is created
     """
     def init_stage(self):
-	self.request_stage = 1
+	self.request_stage = TOPIC_REQUESTED
 	self.topic_requested_time = datetime.utcnow() 
 
     """
@@ -538,7 +569,7 @@ class Comment(db.Model):
     request_id = db.Column(db.Integer, db.ForeignKey('topic_request.request_id'))
     rating = db.Column(db.Float)
 
-    def serialize(self.):
+    def serialize(self):
         return {
             'comment_id': self.comment_id,
             'content': self.content,

@@ -55,7 +55,7 @@ def build_customer_2():
 
 def build_expert_1():
     return Expert(
-        user_id = 1,
+        user_id = 3,
         email = 'andrewng@iaskdata.com',
         last_seen = datetime.utcnow(),
         name = 'Andrew NG',
@@ -74,11 +74,11 @@ def build_expert_1():
 
 def build_category_1():
     category_id = build_category_id(1, 2)
-    return Category(category_id)
+    return Category(category_id = category_id)
  
 def build_category_2():
     category_id = build_category_id(1, 3)
-    return Category(category_id)
+    return Category(category_id = category_id)
 
 def build_comment_1():
     return Comment(

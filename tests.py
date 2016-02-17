@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from config import basedir
 from app import app, db
-from app.models import BaseUser, Customer, Expert, Topic
+#from app.models import BaseUser, Customer, Expert, Topic, TopicRequest, Comment
 #from app.translate import microsoft_translate
 from tests_data import *
 
@@ -35,78 +35,67 @@ class TestCase(unittest.TestCase):
 	assert test_topic_1.topic_id == 1
 	assert test_topic_1.title == '推荐系统求助'
 	assert test_topic_1.rate == 100.0
-	assert test_topic_1.timestamp == queried_t.timestamp
+	assert test_topic_1.created_time == queried_t.created_time
+	assert test_topic_1.expert_id == 1
+	assert test_topic_1.body == 'Our company needs a real-time recommendation system, who can help us?'
 
     def test_customer_no_topics(self):
-        test_customer_no_topics = build_test_customer_no_topics()
-        db.session.add(test_customer_no_topics)
+        test_customer_1 = build_customer_1()
+        db.session.add(test_customer_1)
         db.session.commit()
 	queried_customer = Customer.query.get(1)
         assert queried_customer.user_id == 1
         assert queried_customer.email == 'larry@iaskdata.com'
-        assert queried_customer.following_topics.all() == []
-        assert queried_customer.paid_topics.all() == []
+        assert queried_customer.topic_requests.all() == []
 
-    def test_customer_topics(self):
-	test_topic_1 = build_topic_1()
-        test_customer_following_topics = build_customer_with_topics()
-        db.session.add(test_customer_following_topics)
-        test_customer_following_topics.follow_topic(test_topic_1)
-        db.session.commit()
-	queried_customer = Customer.query.all()
-        assert queried_customer[0].user_id == 2
-        assert queried_customer[0].email == 'zuck@iaskdata.com'
-        assert queried_customer[0].following_topics.all() == [test_topic_1]
-        assert queried_customer[0].paid_topics.all() == []
-
-    def test_customer_multi_topics(self):
+    def test_customer_with_ongoing_topics(self):
 	test_topic_1 = build_topic_1()
 	test_topic_2 = build_topic_2()
-        test_customer_topics = build_customer_with_topics()
-        db.session.add(test_customer_topics)
-        test_customer_topics.follow_topic(test_topic_1)
-        test_customer_topics.add_paid_topic(test_topic_2)
+        test_customer_1 = build_customer_1()
+        db.session.add(test_customer_1)
         db.session.commit()
-	queried_customer = Customer.query.all()
-        assert queried_customer[0].user_id == 2
-        assert queried_customer[0].email == 'zuck@iaskdata.com'
-        assert queried_customer[0].following_topics.all() == [test_topic_1]
-        assert queried_customer[0].paid_topics.all() == [test_topic_2]
+        assert test_customer_1.is_topic_being_requested(test_topic_1) is False
+        assert test_customer_1.add_topic_request(test_topic_1)
+        assert test_customer_1.is_topic_being_requested(test_topic_1) is True
+        assert test_customer_1.add_topic_request(test_topic_1) is None
+	assert test_customer_1.remove_topic_request(test_topic_1)
+        assert test_customer_1.is_topic_being_requested(test_topic_1) is False
+	assert test_customer_1.remove_topic_request(test_topic_2) is None
+        assert test_customer_1.is_topic_being_requested(test_topic_2) is False
+        assert test_customer_1.add_topic_request(test_topic_2)
+	queried_customer = Customer.query.get(1)
+        assert queried_customer.user_id == 1
+        assert queried_customer.email == 'larry@iaskdata.com'
+        assert queried_customer.topic_requests.first().topic == test_topic_2
 
-    """
-	This has some redundancy with the test_customer_topics method above
-    """
-    def test_follow_topics(self):
+    def test_customer_complete_topics(self):
 	test_topic_1 = build_topic_1()
-        test_customer_following_topics = build_customer_with_topics()
-        db.session.add(test_customer_following_topics)
+	test_topic_2 = build_topic_2()
+        test_customer_1 = build_customer_1()
+        db.session.add(test_customer_1)
+        assert test_customer_1.add_topic_request(test_topic_1)
+        assert test_customer_1.add_topic_request(test_topic_2)
         db.session.commit()
-        assert test_customer_following_topics.unfollow_topic(test_topic_1) is None
-	t = test_customer_following_topics.follow_topic(test_topic_1)
-        db.session.add(t)
-        db.session.commit()
-	assert test_customer_following_topics.follow_topic(test_topic_1) is None
-        assert test_customer_following_topics.is_following(test_topic_1)
-        assert test_customer_following_topics.following_topics.count() == 1
-        assert test_customer_following_topics.following_topics.first().title == u'推荐系统求助'
-        assert test_topic_1.following_customers.count() == 1
-        assert test_topic_1.following_customers.first().email == 'zuck@iaskdata.com'
-        t1 = test_customer_following_topics.unfollow_topic(test_topic_1)
-        assert t1 is not None
-        db.session.add(t1)
-        db.session.commit()
-        assert not t1.is_following(test_topic_1)
-        assert test_customer_following_topics.following_topics.count() == 0
-        assert test_topic_1.following_customers.count() == 0
+        assert [t.topic for t in test_customer_1.topic_requests.all()] == [test_topic_1, test_topic_2]
 
     def test_experts(self):
 	test_topic_1 = build_topic_1()
 	test_expert = build_expert_1()
+        test_customer_1 = build_customer_1()
+        test_customer_2 = build_customer_2()
         db.session.add(test_expert)
+        db.session.add(test_customer_1)
+        db.session.add(test_customer_2)
         db.session.commit()
+	assert test_expert.get_followee_count() == 0
+	assert test_expert.get_follower_count() == 0
+	test_customer_1.follow_expert(test_expert)
+	assert test_expert.get_follower_count() == 1
+	test_customer_2.follow_expert(test_expert)
+	assert test_expert.get_follower_count() == 2
 	assert test_expert.remove_topic(test_topic_1) is None
 	t = test_expert.add_topic(test_topic_1)
-	assert test_expert.user_id == 1
+	assert test_expert.user_id == 3
 	assert test_expert.email == 'andrewng@iaskdata.com'
 	assert test_expert.name == 'Andrew NG'
         assert test_expert.company == 'Coursera'
@@ -116,13 +105,11 @@ class TestCase(unittest.TestCase):
         assert test_expert.university == 'Stanford University'
 	assert test_expert.major == 'Computer Science'
 	assert test_expert.rating == 4.9
-        assert test_expert.needed_count == 200
-        assert test_expert.serving_count == 10
 	assert test_expert.serving_topics.count() == 1
-	assert test_expert.serving_topics.first().expert_id == 1
+	assert test_expert.serving_topics.first().expert_id == 3
 	assert test_expert.serving_topics.first().title == u'推荐系统求助'
         assert test_expert.serving_topics.first().rate == 100.0
-	test_expert.remove_topic(test_topic_1)
+	assert test_expert.remove_topic(test_topic_1)
 	assert not test_expert.has_topic(test_topic_1)
 	assert test_expert.serving_topics.count() == 0
 
@@ -131,15 +118,15 @@ class TestCase(unittest.TestCase):
         db.session.add(test_expert)
         db.session.commit()
 	test_category_1 = build_category_1()
-	assert test_expert.remove_category(test_category_1) is None
-	t = test_expert.add_category(test_category_1)
-	assert test_expert.category_tags.count() == 1
-	assert test_expert.category_tags.first().category_id == 102 
-	assert test_expert.has_category(test_category_1)
+	assert test_expert.remove_tag(test_category_1) is None
+	t = test_expert.add_tag(test_category_1)
+	assert test_expert.tags.count() == 1
+	assert test_expert.tags.first().category_id == 102 
+	assert test_expert.has_tag(test_category_1)
 	test_category_2 = build_category_2()
-	t = test_expert.add_category(test_category_2)
-	assert test_expert.category_tags.count() == 2
-	assert test_expert.category_tags.all()[1].category_id == 103
+	t = test_expert.add_tag(test_category_2)
+	assert test_expert.tags.count() == 2
+	assert test_expert.tags.all()[1].category_id == 103
 
     """
     @unittest.skip("Not being tested for the moment")
