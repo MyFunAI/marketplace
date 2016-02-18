@@ -18,7 +18,7 @@ user_id_handler = IDWorker(WORKER_ID, DATA_CENTER_ID)
 
     @return
 """
-def make_user_id():
+def create_user_id():
     #max_user_id = db.session.query(db.func.max(User.numLogins)).scalar()
     return user_id_handler.get_id()
 

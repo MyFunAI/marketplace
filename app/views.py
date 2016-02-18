@@ -2,14 +2,15 @@ from app import app
 from config import *
 from db_utils import *
 from file_utils import *
-from flask import render_template, session, url_for, request, g, jsonify
+from model_utils import *
+from flask import render_template, redirect, session, url_for, request, g, jsonify, json
 from .models import Customer, Expert, Topic, Category, Comment
 
 @app.route('/')
 @app.route('/index')
-def index():
+def index(message = 'Hello World!'):
     content = load_json_file(EXPERT_CATEGORY_PATH)
-    return "Hello, World!"
+    return message
 
 @app.route('/api/v1/customers/<customer_id>/', methods = ['GET'])
 def handle_customer(customer_id):
@@ -22,8 +23,24 @@ def handle_customer(customer_id):
 @app.route('/api/v1/customers', methods = ['POST', 'GET'])
 def handle_customers():
     if request.method == 'POST':
-        #create customers here
-        pass
+        #create a customer here
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+	    user_id = create_user_id()
+            customer = Customer(
+    		user_id = user_id,
+    		email = obj.get('email', ''),
+    		last_seen = datetime.datetime.utcnow(),
+    		name = obj.get('name', ''),
+    		company = obj.get('company', ''),
+    		title = obj.get('title', ''),
+    		about_me = obj.get('about_me', ''),
+		phone_number = obj.get('phone_number', '')
+	    )
+            db.session.add(customer)
+            db.session.commit()
+            return redirect(url_for('index', message = 'customer %d created successfully' % user_id))
+        return redirect(url_for('index', message = 'content-type incorrect, customer creation failed'))
     else:
         users = Customer.query.all()
         if users is None:
@@ -31,6 +48,20 @@ def handle_customers():
         else:
             return jsonify({'customers':[user.serialize() for user in users]})
     return "Customer created!"
+
+@app.route('/api/v1/experts', methods = ['POST', 'GET'])
+def handle_experts():
+    if request.method == 'POST':
+        #create experts here
+        pass
+    else:
+        users = Expert.query.all()
+        if users is None:
+            return jsonify({'experts':''})
+        else:
+            return jsonify({'experts':[user.serialize() for user in users]})
+    return "Expert created!"
+
 
 """
     This method loads the categories from a text file and stores it in memory.
