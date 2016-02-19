@@ -53,9 +53,21 @@ def build_customer_2():
         phone_number = '13880089001'
     )
 
+def build_customer_3():
+    return Customer(
+        user_id = 3,
+        email = 'jack@iaskdata.com',
+        last_seen = datetime.utcnow(),
+        name = 'jack',
+        company = 'Twitter',
+        title = 'CEO',
+        about_me = 'i love my job',
+        phone_number = '13880089002'
+    )
+
 def build_expert_1():
     return Expert(
-        user_id = 3,
+        user_id = 101,
         email = 'andrewng@iaskdata.com',
         last_seen = datetime.utcnow(),
         name = 'Andrew NG',
@@ -85,13 +97,35 @@ def build_comment_1():
         comment_id = 1,
     	content = 'this guy is really good at his major',
         request_id = 1,
-        rating = 5.0
+        rating = 4.6
+    )
+
+def build_comment_2():
+    return Comment(
+        comment_id = 2,
+    	content = 'bravo, this expert really knows his field',
+        request_id = 2,
+        rating = 4.8
     )
 
 def build_topic_request_1():
     return TopicRequest(
         request_id = 1,
         customer_id = 1,
+        topic_id = 1,
+        request_stage = 0,
+    	topic_requested_time = datetime.utcnow(),
+    	topic_accepted_time = datetime.utcnow(),
+        topic_paid_time = datetime.utcnow(),
+        topic_scheduled_time = datetime.utcnow(),
+        topic_served_time = datetime.utcnow(),
+        topic_rated_time = datetime.utcnow()
+    )
+
+def build_topic_request_2():
+    return TopicRequest(
+        request_id = 2,
+        customer_id = 2,
         topic_id = 1,
         request_stage = 0,
     	topic_requested_time = datetime.utcnow(),

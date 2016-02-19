@@ -63,7 +63,6 @@ class BaseUser(db.Model):
     about_me = db.Column(db.String(500))
     type = db.Column(db.String(20))
 
-
     """
 	Users that the current user shows interests. The current user is the target user, i.e., this user object.
 	Showing interests is not the same as requesting services.
@@ -157,14 +156,29 @@ class Customer(BaseUser):
 	lazy = 'dynamic'
     )
     """
-
     #def load_topic_requests(self):
 	#self.topic_requests = TopicRequest.query.filter_by(customer_id = self.user_id).all()
 
+    """
+	@return a list of this customer's ongoing requests
+    """
+    def get_ongoing_requests(self):
+	return [r for r in self.topic_requests.all() if not r.is_completed()]
+
+    """
+	@return a list of this customer's completed requests
+    """
+    def get_completed_requests(self):
+	return [r for r in self.topic_requests.all() if r.is_completed()]
+
+    """
+	@param topic - a given topic, an instance of the Topic class
+	@return one or no ongoing request for the given topic
+    """
     def get_ongoing_requests_by_topic(self, topic):
-        topics = self.topic_requests.filter_by(topic_id = topic.topic_id).all()
-	if topics:
-	    return [topic for topic in topics if not topic.is_completed()]
+        requests = self.topic_requests.filter_by(topic_id = topic.topic_id).all()
+	if requests:
+	    return [r for r in requests if not r.is_completed()]
 	else:
 	    return []
 
@@ -191,7 +205,7 @@ class Customer(BaseUser):
             return self
 
     """
-	Request a topic, adding it to the ongoing request list.
+	Request a topic for the current customer, adding it to the ongoing request list.
 	@param topic - a Topic instance
     """
     def add_topic_request(self, topic):
@@ -206,11 +220,19 @@ class Customer(BaseUser):
             return self
 
     """
+	Load the experts that the current customer showed interests in.
+    """
+    def load_followed_experts(self):
+	expert_ids = [expert.user_id for expert in self.followees.all()]
+	return Expert.query.filter(Expert.user_id.in_(expert_ids)).all()
+
+    """
 	Serialize the current object into json. All fields of the object are fully rendered as well.
     """
     def serialize(self):
 	json_obj = super(Customer, self).serialize()
 	json_obj['phone_number'] = self.phone_number
+	json_obj['following_experts'] = [e.serialize() for e in self.load_followed_experts()]
 	json_obj['completed_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if r.is_completed()] 
 	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if not r.is_completed()] 
         return json_obj
@@ -304,6 +326,15 @@ class Expert(BaseUser):
         return Category(build_category_id(first_level_index, second_level_index))
 
     """
+	Mark a topic request as 'complete'.
+	This action is triggered by experts only.
+	@param request - a TopicRequest instance
+    """
+    def complete_request(self, request):
+	if self.has_topic(request.topic):
+	    request.set_to_completed()
+
+    """
 	Comments are associated with topic requests, which can be found in topic objects.
 	To fetch the comments, go through the following steps
 	1) Start from each of the topics being served by the current expert
@@ -343,7 +374,7 @@ class Expert(BaseUser):
     def is_anonymous(self):
         return False
 
-	"""
+    """
 	Serialize the current object into json
     """
     def serialize(self):
@@ -394,7 +425,7 @@ class Topic(db.Model):
     expert_id = db.Column(db.Integer, db.ForeignKey('expert.user_id'))
 
     """
-	One-to-many relationship between Topic and TopicRequests
+	One-to-many relationship between Topic and TopicRequests.
     """
     topic_requests = db.relationship('TopicRequest', backref = 'topic', lazy='dynamic')
 
@@ -419,6 +450,33 @@ class Topic(db.Model):
 		s /= n
 	return s
 
+    """
+	@return True - this request is already in this topic's request list; False - no
+    """
+    def has_request(self, request):
+        return self.topic_requests.filter_by(request_id = request.request_id).count() > 0
+
+    """
+	Remove the given request from this topic's request list
+	@param request - a TopicRequest instance
+    """
+    def remove_request(self, request):
+        if self.has_request(request):
+            self.topic_requests.remove(request)
+            return self
+
+    """
+	@return a list of this topic's all ongoing requests
+    """
+    def get_ongoing_requests(self):
+	return [r for r in self.topic_requests.all() if not r.is_completed()]
+
+    """
+	@return a list of this topic's all completed requests
+    """
+    def get_completed_requests(self):
+	return [r for r in self.topic_requests.all() if r.is_completed()]
+
     def serialize(self):
 	return {
 	    'topic_id' : self.topic_id,
@@ -427,6 +485,8 @@ class Topic(db.Model):
 	    'created_time' : self.created_time.strftime(TIME_FORMAT),
 	    'rate' : self.rate,
 	    'expert_id' : self.expert_id,
+	    'ongoing_requests' : len(self.get_ongoing_requests()),
+	    'completed_requests' : len(self.get_completed_requests()),
 	    'average_rating' : self.compute_rating()
 	}
 
@@ -513,6 +573,32 @@ class TopicRequest(db.Model):
     """
     def is_rated(self):
 	return self.get_stage() >= TOPIC_RATED
+
+    def set_to_accepted(self):
+	self.request_stage = 0 | TOPIC_ACCEPTED_MASK
+	self.topic_accepted_time = datetime.utcnow()
+
+    def set_to_paid(self):
+	self.request_stage = 0 | TOPIC_PAID_MASK
+	self.topic_paid_time = datetime.utcnow()
+
+    def set_to_scheduled(self):
+	self.request_stage = 0 | TOPIC_SCHEDULED_MASK
+	self.topic_scheduled_time = datetime.utcnow()
+
+    """
+	Set the request to the 'completed' stage, regardless of its previous stage.
+    """
+    def set_to_completed(self):
+	self.request_stage = 0 | TOPIC_SERVED_MASK
+	self.topic_served_time = datetime.utcnow()
+
+    """
+	Set the request to the 'rated' stage, regardless of its previous stage.
+    """
+    def set_to_rated(self):
+	self.request_stage = 0 | TOPIC_RATED_MASK
+	self.topic_rated_time = datetime.utcnow()
 
     def serialize(self):
 	return {

@@ -76,7 +76,15 @@ class TestCase(unittest.TestCase):
         assert test_customer_1.add_topic_request(test_topic_1)
         assert test_customer_1.add_topic_request(test_topic_2)
         db.session.commit()
+	requests = test_customer_1.get_ongoing_requests_by_topic(test_topic_1)
+	assert len(requests) == 1
+	assert requests[0].topic_id == test_topic_1.topic_id
         assert [t.topic for t in test_customer_1.topic_requests.all()] == [test_topic_1, test_topic_2]
+	assert len(test_customer_1.get_ongoing_requests()) == 2
+	requests[0].set_to_completed()
+	requests = test_customer_1.get_ongoing_requests()
+	assert len(requests) == 1
+	assert requests[0].topic_id == test_topic_2.topic_id
 
     def test_experts(self):
 	test_topic_1 = build_topic_1()
@@ -95,7 +103,7 @@ class TestCase(unittest.TestCase):
 	assert test_expert.get_follower_count() == 2
 	assert test_expert.remove_topic(test_topic_1) is None
 	t = test_expert.add_topic(test_topic_1)
-	assert test_expert.user_id == 3
+	assert test_expert.user_id == 101
 	assert test_expert.email == 'andrewng@iaskdata.com'
 	assert test_expert.name == 'Andrew NG'
         assert test_expert.company == 'Coursera'
@@ -106,7 +114,7 @@ class TestCase(unittest.TestCase):
 	assert test_expert.major == 'Computer Science'
 	assert test_expert.rating == 4.9
 	assert test_expert.serving_topics.count() == 1
-	assert test_expert.serving_topics.first().expert_id == 3
+	assert test_expert.serving_topics.first().expert_id == 101
 	assert test_expert.serving_topics.first().title == u'推荐系统求助'
         assert test_expert.serving_topics.first().rate == 100.0
 	assert test_expert.remove_topic(test_topic_1)
@@ -127,6 +135,33 @@ class TestCase(unittest.TestCase):
 	t = test_expert.add_tag(test_category_2)
 	assert test_expert.tags.count() == 2
 	assert test_expert.tags.all()[1].category_id == 103
+
+    def test_average_topic_rating(self):
+	test_topic_request_1 = build_topic_request_1()
+	test_topic_request_2 = build_topic_request_2()
+	test_comment_1 = build_comment_1()
+	test_comment_2 = build_comment_2()
+	test_topic_1 = build_topic_1()
+	test_expert = build_expert_1()
+        db.session.add(test_expert)
+	db.session.commit()
+	test_topic_request_1.topic = test_topic_1
+	test_topic_request_2.topic = test_topic_1
+	test_topic_request_1.comment = test_comment_1
+	test_topic_request_2.comment = test_comment_2 
+	assert test_expert.serving_topics.count() == 0
+	test_expert.add_topic(test_topic_1)
+	assert test_expert.serving_topics.count() == 1
+	assert len(test_topic_1.get_ongoing_requests()) == 2
+	assert test_topic_1.compute_rating() == 0.0
+	test_topic_request_1.set_to_rated()
+	assert len(test_topic_1.get_ongoing_requests()) == 1
+	assert len(test_topic_1.get_completed_requests()) == 1
+	assert test_topic_1.compute_rating() == 4.6
+	test_topic_request_2.set_to_rated()
+	assert len(test_topic_1.get_ongoing_requests()) == 0
+	assert len(test_topic_1.get_completed_requests()) == 2
+	assert round(test_topic_1.compute_rating(), 2) == 4.70
 
     """
     @unittest.skip("Not being tested for the moment")
