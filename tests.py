@@ -36,7 +36,7 @@ class TestCase(unittest.TestCase):
 	assert test_topic_1.title == '推荐系统求助'
 	assert test_topic_1.rate == 100.0
 	assert test_topic_1.created_time == queried_t.created_time
-	assert test_topic_1.expert_id == 1
+	assert test_topic_1.expert_id == 101
 	assert test_topic_1.body == 'Our company needs a real-time recommendation system, who can help us?'
 
     def test_customer_no_topics(self):
@@ -113,13 +113,13 @@ class TestCase(unittest.TestCase):
         assert test_expert.university == 'Stanford University'
 	assert test_expert.major == 'Computer Science'
 	assert test_expert.rating == 4.9
-	assert test_expert.serving_topics.count() == 1
-	assert test_expert.serving_topics.first().expert_id == 101
-	assert test_expert.serving_topics.first().title == u'推荐系统求助'
-        assert test_expert.serving_topics.first().rate == 100.0
+	assert len(test_expert.serving_topics) == 1
+	assert test_expert.serving_topics[0].expert_id == 101
+	assert test_expert.serving_topics[0].title == u'推荐系统求助'
+        assert test_expert.serving_topics[0].rate == 100.0
 	assert test_expert.remove_topic(test_topic_1)
 	assert not test_expert.has_topic(test_topic_1)
-	assert test_expert.serving_topics.count() == 0
+	assert len(test_expert.serving_topics) == 0
 
     def test_category(self):
 	test_expert = build_expert_1()
@@ -149,9 +149,9 @@ class TestCase(unittest.TestCase):
 	test_topic_request_2.topic = test_topic_1
 	test_topic_request_1.comment = test_comment_1
 	test_topic_request_2.comment = test_comment_2 
-	assert test_expert.serving_topics.count() == 0
+	assert len(test_expert.serving_topics) == 0
 	test_expert.add_topic(test_topic_1)
-	assert test_expert.serving_topics.count() == 1
+	assert len(test_expert.serving_topics) == 1
 	assert len(test_topic_1.get_ongoing_requests()) == 2
 	assert test_topic_1.compute_rating() == 0.0
 	test_topic_request_1.set_to_rated()

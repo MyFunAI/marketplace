@@ -16,9 +16,9 @@ def index(message = 'Hello World!'):
 def handle_customer(customer_id):
     user = Customer.query.filter_by(user_id = customer_id).first()
     if user is None:
-	return jsonify({'customers':''})
+	return jsonify({})
     else:
-        return jsonify({'customers':[user.serialize()]})
+        return jsonify({'customer' : user.serialize() })
 
 @app.route('/api/v1/customers', methods = ['POST', 'GET'])
 def handle_customers():
@@ -44,7 +44,7 @@ def handle_customers():
     else:
         users = Customer.query.all()
         if users is None:
-            return jsonify({'customers':''})
+            return jsonify({})
         else:
             return jsonify({'customers':[user.serialize() for user in users]})
     return "Customer created!"
@@ -53,15 +53,42 @@ def handle_customers():
 def handle_experts():
     if request.method == 'POST':
         #create experts here
-        pass
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+	    user_id = create_user_id()
+	    expert = Expert(
+    		user_id = user_id,
+    		email = obj.get('email', ''),
+    		last_seen = datetime.datetime.utcnow(),
+    		name = obj.get('name', ''),
+    		company = obj.get('company', ''),
+    		title = obj.get('title', ''),
+    		about_me = obj.get('about_me', ''),
+    		degree = obj.get('degree', ''),
+		university = obj.get('university', ''),
+    		major = obj.get('major', ''),
+    		bio = obj.get('bio', ''),
+		credits = obj.get('credits', 0)
+	    )
+            db.session.add(expert)
+            db.session.commit()
+            return redirect(url_for('index', message = 'expert %d created successfully' % user_id))
+        return redirect(url_for('index', message = 'content-type incorrect, expert creation failed'))
     else:
         users = Expert.query.all()
         if users is None:
-            return jsonify({'experts':''})
+            return jsonify({})
         else:
             return jsonify({'experts':[user.serialize() for user in users]})
     return "Expert created!"
 
+@app.route('/api/v1/experts/<expert_id>/', methods = ['GET'])
+def handle_expert(expert_id):
+    user = Expert.query.filter_by(user_id = expert_id).first()
+    if user is None:
+	return jsonify({})
+    else:
+        return jsonify({'expert' : user.serialize() })
 
 """
     This method loads the categories from a text file and stores it in memory.
@@ -70,10 +97,11 @@ def handle_experts():
     The category-id is calculated by first_level_index * 100 + second_level_index
     The content of the category hierarchy is stored in a plain text file, not in db.
     Categories can only be updated (extended, modified or reduced) by the server side.
+
+    TO-DO : rendering Chinese in the browser needs fixing
 """
 @app.route('/api/v1/categories', methods = ['GET'])
 def load_categories():
-    #if request.method == 'POST':
     content = load_json_file(EXPERT_CATEGORY_PATH)
     categories = {}
     for i in range(len(content['level1'])):
@@ -81,18 +109,7 @@ def load_categories():
 	    categories[(i + 1) * CATEGORY_ID_MULTIPLIER + (j + 1)] = [content['level1'][i], content['level2'][i][j]]
 	#print "current json file ", categories
     session['categories'] = categories
-    return 'Categories loaded in json'
-
-"""
-	To get user 
-"""
-@app.route('/api/v1/user/<user_id>/', methods = ['GET'])
-def user(user_id):
-    user = BaseUser.query.filter_by(user_id = user_id).first()
-    if user is None:
-	return jsonify({'User':''})
-    else:
-        return jsonify({'User':user.serialize()})
+    return jsonify(categories)
 
 """
 	To get comment 

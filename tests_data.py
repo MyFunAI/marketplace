@@ -14,7 +14,7 @@ def build_topic_1():
         title = u'推荐系统求助',
         created_time = datetime.utcnow(),
         rate = 100.0,
-        expert_id = 1
+        expert_id = 101
     )
     return test_topic_1
 
@@ -25,7 +25,7 @@ def build_topic_2():
         title = u'VR & AR',
         created_time = datetime.utcnow(),
         rate = 150.0,
-        expert_id = 2
+        expert_id = 101
     )
     return test_topic_2
 
@@ -38,6 +38,8 @@ def build_customer_1():
         company = 'google',
         title = 'CEO',
         about_me = 'i love my job',
+        avatar_thumbnail_url = 'thumbnail',
+        avatar_url = 'image',
         phone_number = '13880089000'
     )
 
@@ -50,6 +52,8 @@ def build_customer_2():
         company = 'facebook',
         title = 'CEO',
         about_me = 'i love my job',
+        avatar_thumbnail_url = 'thumbnail',
+        avatar_url = 'image',
         phone_number = '13880089001'
     )
 
@@ -78,8 +82,6 @@ def build_expert_1():
         university = 'Stanford University',
         major = 'Computer Science',
         rating = 4.9,
-        profile_thumbnail_url = 'thumbnail',
-        profile_image_url = 'image',
         bio = 'I graduated from the best university and I created the best company in the field',
         credits = 5
     )

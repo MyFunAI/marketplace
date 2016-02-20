@@ -61,6 +61,8 @@ class BaseUser(db.Model):
     company = db.Column(db.String(50), index = True)
     title = db.Column(db.String(20), index = True)  #CEO, VP, etc.
     about_me = db.Column(db.String(500))
+    avatar_thumbnail_url = db.Column(db.String(250))
+    avatar_url = db.Column(db.String(250))
     type = db.Column(db.String(20))
 
     """
@@ -112,7 +114,9 @@ class BaseUser(db.Model):
 	    'last_seen': self.last_seen.strftime(TIME_FORMAT),
 	    'company': self.company,
 	    'title': self.title,
-	    'about_me': self.about_me
+	    'about_me': self.about_me,
+            'avatar_thumbnail_url': self.avatar_thumbnail_url,
+	    'avatar_url': self.avatar_url
 	}
 
     __mapper_args__ = {
@@ -221,10 +225,11 @@ class Customer(BaseUser):
 
     """
 	Load the experts that the current customer showed interests in.
+	@param a query object of the needed experts 
     """
     def load_followed_experts(self):
 	expert_ids = [expert.user_id for expert in self.followees.all()]
-	return Expert.query.filter(Expert.user_id.in_(expert_ids)).all()
+	return Expert.query.filter(Expert.user_id.in_(expert_ids))
 
     """
 	Serialize the current object into json. All fields of the object are fully rendered as well.
@@ -232,7 +237,7 @@ class Customer(BaseUser):
     def serialize(self):
 	json_obj = super(Customer, self).serialize()
 	json_obj['phone_number'] = self.phone_number
-	json_obj['following_experts'] = [e.serialize() for e in self.load_followed_experts()]
+	json_obj['interested_in_experts'] = [e.serialize() for e in self.load_followed_experts().all()]
 	json_obj['completed_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if r.is_completed()] 
 	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if not r.is_completed()] 
         return json_obj
@@ -249,14 +254,12 @@ class Expert(BaseUser):
     rating = db.Column(db.Float)  #rating of this expert based on the feedback from the customers
     #needed_count = db.Column(db.Integer)  #the number of customers hoping to talk to this expert
     #serving_count = db.Column(db.Integer)  #times this expert served customers
-    profile_thumbnail_url = db.Column(db.String(250))
-    profile_image_url = db.Column(db.String(250))
     bio = db.Column(db.Text(2000))
     credits = db.Column(db.Integer)
     """
 	A one-to-many relationship exists between an expert and topics.
     """
-    serving_topics = db.relationship('Topic', backref='expert', lazy='dynamic')
+    serving_topics = db.relationship('Topic', backref='expert')
 
     tags = db.relationship(
 	'Category',
@@ -294,7 +297,11 @@ class Expert(BaseUser):
 	Check if this expert is already serving this topic
     """
     def has_topic(self, topic):
-        return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
+        #return self.serving_topics.filter_by(topic_id = topic.topic_id).count() > 0
+	for t in self.serving_topics:
+	    if t.topic_id == topic.topic_id:
+		return True
+	return False
 
     def add_tag(self, tag):
         if not self.has_tag(tag):
@@ -340,15 +347,35 @@ class Expert(BaseUser):
 	1) Start from each of the topics being served by the current expert
 	2) Get all the topic requests of each topic
 	3) If that topic request has a comment associated with it, retrieve it
+
+	TO-DO: add caching to avoid unnecessary accesses to the db
 	@return a list of comments
     """
     def get_comments(self):
 	comments = []
-	for topic in self.serving_topics.all():
-	    for request in topic.topic_requests:
+	for topic in self.serving_topics:
+	    for request in topic.topic_requests.all():
 		if request.is_rated():
 		    comments.append(request.comment)
 	return comments
+
+    """
+	Get the customers that this expert has served.
+	To fetch the customers, go through the following steps
+	1) Start from each of the topics being served by the current expert
+	2) Get all the 'completed' topic requests of each topic
+	3) Get the customers associated with those topic requests
+
+	TO-DO: add caching to avoid unnecessary accesses to the db
+	@return a list of customers
+    """
+    def get_served_customers(self):
+	customers = []
+	for topic in self.serving_topics:
+	    for request in topic.topic_requests.all():
+		if request.is_completed():
+		    customers.append(request.customer)
+	return customers
 
     @staticmethod
     def make_unique_nickname(nickname):
@@ -375,20 +402,29 @@ class Expert(BaseUser):
         return False
 
     """
+	Load the customers that have shown interests in this expert.
+	@return a query object of the needed customers
+    """
+    def load_following_customers(self):
+	customer_ids = [customer.user_id for customer in self.followers.all()]
+	return Customer.query.filter(Customer.user_id.in_(customer_ids))
+
+    """
 	Serialize the current object into json
     """
     def serialize(self):
+	customers = self.load_following_customers().all()
 	json_obj = super(Expert, self).serialize()
 	json_obj['degree'] = self.degree
 	json_obj['serving_topics'] = [r.serialize() for r in self.serving_topics]
         json_obj['university'] = self.university 
 	json_obj['major'] = self.major
         json_obj['rating'] = self.rating
-        json_obj['profile_thumbnail_url'] = self.profile_thumbnail_url
-	json_obj['profile_image_url'] = self.profile_image_url
         json_obj['bio'] = self.bio
 	json_obj['credits'] = self.credits
-	json_obj['comments'] = [c.serialize() for c in get_comments()]
+	json_obj['comments'] = [c.serialize() for c in self.get_comments()]
+	json_obj['following_customer_count'] = len(customers)
+	json_obj['following_customers'] = [c.serialize() for c in customers]
         return json_obj
 
     """
@@ -478,6 +514,13 @@ class Topic(db.Model):
 	return [r for r in self.topic_requests.all() if r.is_completed()]
 
     def serialize(self):
+	ongoing_requests = []
+	completed_requests = []
+	for r in self.topic_requests.all():
+	    if r.is_completed():
+		completed_requests.append(r)
+	    else:
+		ongoing_requests.append(r)
 	return {
 	    'topic_id' : self.topic_id,
             'title' : self.title,
@@ -485,8 +528,10 @@ class Topic(db.Model):
 	    'created_time' : self.created_time.strftime(TIME_FORMAT),
 	    'rate' : self.rate,
 	    'expert_id' : self.expert_id,
-	    'ongoing_requests' : len(self.get_ongoing_requests()),
-	    'completed_requests' : len(self.get_completed_requests()),
+	    'ongoing_requests_count' : len(ongoing_requests),
+	    'completed_requests_count' : len(completed_requests),
+	    'ongoing_requests' : [r.serialize() for r in ongoing_requests],
+	    'completed_requests' : [r.serialize() for r in completed_requests],
 	    'average_rating' : self.compute_rating()
 	}
 
@@ -604,7 +649,8 @@ class TopicRequest(db.Model):
 	return {
 	    'request_id': self.request_id,
             'customer_id': self.customer_id,
-	    'topic': self.topic.serialize(),
+	    'topic_id': self.topic.topic_id,
+	    'topic_title': self.topic.title,
 	    'request_stage': self.request_stage,
 	    'topic_requested_time': self.topic_requested_time,
 	    'topic_accepted_time': self.topic_accepted_time,
