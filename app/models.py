@@ -256,10 +256,11 @@ class Expert(BaseUser):
     #serving_count = db.Column(db.Integer)  #times this expert served customers
     bio = db.Column(db.Text(2000))
     credits = db.Column(db.Integer)
+
     """
 	A one-to-many relationship exists between an expert and topics.
     """
-    serving_topics = db.relationship('Topic', backref='expert')
+    serving_topics = db.relationship('Topic', backref='expert', lazy='joined')
 
     tags = db.relationship(
 	'Category',

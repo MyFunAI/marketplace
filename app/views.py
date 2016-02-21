@@ -1,20 +1,22 @@
-from app import app
+from app import app, cache
 from config import *
 from db_utils import *
-from file_utils import *
 from model_utils import *
 from flask import render_template, redirect, session, url_for, request, g, jsonify, json
 from .models import Customer, Expert, Topic, Category, Comment
+from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
 
 @app.route('/')
 @app.route('/index')
 def index(message = 'Hello World!'):
-    content = load_json_file(EXPERT_CATEGORY_PATH)
+    #import pdb; pdb.set_trace()
+    content = CategoryService.load_categories()
     return message
 
+# import pdb;pdb.set_trace()
 @app.route('/api/v1/customers/<customer_id>/', methods = ['GET'])
 def handle_customer(customer_id):
-    user = Customer.query.filter_by(user_id = customer_id).first()
+    user = CustomerService.load_customer(customer_id)
     if user is None:
 	return jsonify({})
     else:
@@ -42,7 +44,7 @@ def handle_customers():
             return redirect(url_for('index', message = 'customer %d created successfully' % user_id))
         return redirect(url_for('index', message = 'content-type incorrect, customer creation failed'))
     else:
-        users = Customer.query.all()
+        users = CustomerService.load_customers()
         if users is None:
             return jsonify({})
         else:
@@ -75,7 +77,7 @@ def handle_experts():
             return redirect(url_for('index', message = 'expert %d created successfully' % user_id))
         return redirect(url_for('index', message = 'content-type incorrect, expert creation failed'))
     else:
-        users = Expert.query.all()
+        users = ExpertService.load_experts()
         if users is None:
             return jsonify({})
         else:
@@ -84,7 +86,7 @@ def handle_experts():
 
 @app.route('/api/v1/experts/<expert_id>/', methods = ['GET'])
 def handle_expert(expert_id):
-    user = Expert.query.filter_by(user_id = expert_id).first()
+    user = ExpertService.load_expert(expert_id)
     if user is None:
 	return jsonify({})
     else:
@@ -102,7 +104,7 @@ def handle_expert(expert_id):
 """
 @app.route('/api/v1/categories', methods = ['GET'])
 def load_categories():
-    content = load_json_file(EXPERT_CATEGORY_PATH)
+    content = CategoryService.load_categories()
     categories = {}
     for i in range(len(content['level1'])):
 	for j in range(len(content['level2'][i])):
@@ -111,46 +113,86 @@ def load_categories():
     session['categories'] = categories
     return jsonify(categories)
 
-"""
-	To get comment 
-"""
 @app.route('/api/v1/comment/<comment_id>/', methods = ['GET'])
-def comment(comment_id):
-    comment = Comment.query.filter_by(comment_id = comment_id).first()
+def handle_comment(comment_id):
+    comment = CommentService.load_comment(comment_id)
     if comment is None:
-	return jsonify({'Comment':''})
+	return jsonify({})
     else:
-        return jsonify({'Comment':comment.serialize()})	
+        return jsonify({'Comment' : comment.serialize()})	
 
-"""
-	To get expert 
-"""
-@app.route('/api/v1/expert/<expert_id>/', methods = ['GET'])
-def expert(expert_id):
-    user = Expert.query.filter_by(user_id = expert_id).first()
-    if user is None:
-	return jsonify({'Expert':''})
+@app.route('/api/v1/comments', methods = ['POST', 'GET'])
+def handle_comments():
+    if request.method == 'POST':
+        #create comments here
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+	    comment_id = obj.get('comment_id', -1)
+	    comment = Comment(
+    		comment_id = comment_id,
+		content = obj.get('content', ''),
+    		request_id = obj.get('request_id', -1),
+    		rating = obj.get('rating', 0.0)
+	    )
+            db.session.add(comment)
+            db.session.commit()
+            return redirect(url_for('index', message = 'comment %d created successfully' % comment_id))
+        return redirect(url_for('index', message = 'content-type incorrect, comment creation failed'))
     else:
-        return jsonify({'Expert':user.serialize()})
+        comments = CommentService.load_comments()
+        if comments is None:
+            return jsonify({})
+        else:
+            return jsonify({'comments' : [comment.serialize() for comment in comments]})
 
-"""
-	To get topic 
-"""
+@app.route('/api/v1/topics', methods = ['POST', 'GET'])
+def handle_topics():
+    if request.method == 'POST':
+        #create topics here
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+	    topic_id = obj.get('topic_id', -1)
+	    topic = Topic(
+		topic_id = topic_id,
+    		body = obj.get('body', ''),
+    		title = obj.get('title', ''),
+    		created_time = datetime.datetime.utcnow(),
+    		rate = obj.get('rate', 0.0),
+    		expert_id = obj.get('expert_id', -1)
+	    )
+            db.session.add(topic)
+            db.session.commit()
+            return redirect(url_for('index', message = 'topic %d created successfully' % topic_id))
+        return redirect(url_for('index', message = 'content-type incorrect, topic creation failed'))
+    else:
+        topics = Topic.query.all()
+        if s is None:
+            return jsonify({})
+        else:
+            return jsonify({'topics' : [topic.serialize() for topic in topics]})
+
 @app.route('/api/v1/topic/<topic_id>/', methods = ['GET'])
-def topic(topic_id):
+def handle_topic(topic_id):
     topic = Topic.query.filter_by(topic_id = topic_id).first()
     if topic is None:
-	return jsonify({'Topic':''})
+	return jsonify({})
     else:
-        return jsonify({'Topic':topic.serialize(topic)})
+        return jsonify({'Topic':topic.serialize()})
 
-@app.route('/api/v1/topic/title/<topic_id>/', methods = ['GET'])
-def topic_title(topic_id):
-    topic = Topic.query.filter_by(topic_id = topic_id).first()
-    if topic is None:
-        return jsonify({'topic_id':topic_id, 'topic_title':''})
+"""
+    The default is to rank experts in the rating-descending order.
+    Rating is computed based on the ratings on all topics of an expert.
+
+    TO-DO: add recommendation algorithms
+"""
+@app.route('/api/v1/recommends', methods = ['GET'])
+def handle_recommends():
+    experts = Expert.query.order_by(Expert.rating.desc()).all()
+    if experts is None:
+        return jsonify({})
     else:
-        return jsonify({'topic_id':topic_id, 'topic_title':topic.title})
+	#recommendation algorithms kick in here
+        return jsonify({'experts' : [expert.serialize() for expert in experts]})
 
 """
 	To get instruction 
