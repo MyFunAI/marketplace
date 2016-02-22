@@ -60,3 +60,6 @@ class CategoryService:
 	return load_json_file(EXPERT_CATEGORY_PATH)
 
 
+class ImageService:
+    pass
+

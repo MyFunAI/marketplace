@@ -1,4 +1,4 @@
-from app import app, cache
+from app import app, cache, avatar_uploader
 from config import *
 from db_utils import *
 from model_utils import *
@@ -193,6 +193,19 @@ def handle_recommends():
     else:
 	#recommendation algorithms kick in here
         return jsonify({'experts' : [expert.serialize() for expert in experts]})
+
+@app.route('/api/v1/avatars/<user_id>/', methods = ['POST', 'GET'])
+def handle_avatar(user_id):
+    print 'user id = ', user_id
+    if request.method == 'POST':
+	if 'avatar' in request.files:
+            filename = avatar_uploader.save(request.files['avatar'])
+            return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
+	else:
+            return redirect(url_for('index', message = 'avatar %d not found' % user_id))
+    else:
+	pass
+    return redirect(url_for('index', message = 'avatar %d created successfully' % user_id))
 
 """
 	To get instruction 
