@@ -99,3 +99,6 @@ TOPIC_RATED_MASK = 1 << (TOPIC_RATED - 1)
 
 CACHE_TIMEOUT = 120
 
+PHOTO_BASE_DIR = '/home/guang/Documents/code/vbigdata/iaskdata-marketplace/app/resources/photos'
+ORIGINAL_PHOTO_FILENAME = 'original'
+

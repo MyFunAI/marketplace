@@ -2,9 +2,12 @@ from app import app, cache, avatar_uploader
 from config import *
 from db_utils import *
 from model_utils import *
-from flask import render_template, redirect, session, url_for, request, g, jsonify, json
+from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json
 from .models import Customer, Expert, Topic, Category, Comment
 from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
+from werkzeug import secure_filename
+import glob
+import os
 
 @app.route('/')
 @app.route('/index')
@@ -194,18 +197,26 @@ def handle_recommends():
 	#recommendation algorithms kick in here
         return jsonify({'experts' : [expert.serialize() for expert in experts]})
 
-@app.route('/api/v1/avatars/<user_id>/', methods = ['POST', 'GET'])
+"""
+    Only support single avatar image uploading now.
+"""
+@app.route('/api/v1/avatar/<user_id>/', methods = ['POST', 'GET'])
 def handle_avatar(user_id):
-    print 'user id = ', user_id
     if request.method == 'POST':
 	if 'avatar' in request.files:
-            filename = avatar_uploader.save(request.files['avatar'])
+	    ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
+            filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
             return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
 	else:
             return redirect(url_for('index', message = 'avatar %d not found' % user_id))
     else:
-	pass
-    return redirect(url_for('index', message = 'avatar %d created successfully' % user_id))
+	#Find the full image path
+	filenames = glob.glob(os.path.join(PHOTO_BASE_DIR, 'avatars', str(user_id), ORIGINAL_PHOTO_FILENAME + '*'))
+	if len(filenames) > 0:
+	    ext = os.path.splitext(filenames[0])
+	    return send_file(filenames[0], mimetype = 'image/' + ext[1][1:])
+	else:
+            return redirect(url_for('index', message = 'avatar for %d does not exist' % user_id))
 
 """
 	To get instruction 

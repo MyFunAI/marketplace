@@ -1,3 +1,4 @@
+from config import PHOTO_BASE_DIR
 from flask import Flask
 from flask.ext.cache import Cache
 from flask.ext.sqlalchemy import SQLAlchemy
@@ -6,9 +7,8 @@ from flask.ext.uploads import UploadSet, configure_uploads, IMAGES, patch_reques
 app = Flask(__name__)
 app.config.from_object('config')
 app.config.update(
-    UPLOADS_DEFAULT_DEST = '/home/guang/Documents/code/vbigdata/iaskdata-marketplace/app/resources/photos'
+    UPLOADS_DEFAULT_DEST = PHOTO_BASE_DIR
 )
-
 
 db = SQLAlchemy(app)
 #TO-DO: 'simple' cache is not thread-safe
