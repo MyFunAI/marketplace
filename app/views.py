@@ -199,13 +199,28 @@ def handle_recommends():
 
 """
     Only support single avatar image uploading now.
+    For the POST mode, another argument indicating the type of users is needed. The Customer/Expert db is updated
+    as well, i.e., the 'avatar_url' field is updated.
+
+    TO-DO: crop the raw avatar to generate a thumbnail 
 """
 @app.route('/api/v1/avatar/<user_id>/', methods = ['POST', 'GET'])
 def handle_avatar(user_id):
     if request.method == 'POST':
-	if 'avatar' in request.files:
+	if 'avatar' in request.files and 'user_type' in request.form:
 	    ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
             filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
+	    full_path = os.path.join('avatars', filename)
+	    if request.form['user_type'] == 'customer':
+		#Customers
+		user = Customer.query.filter_by(user_id = user_id).first()
+		user.avatar_url = full_path 
+	    else:
+		#Experts 
+		user = Expert.query.filter_by(user_id = user_id).first()
+		user.avatar_url = full_path 
+            db.session.commit()
+	    #avatar saved, filename =  17526161080979456/original.jpg
             return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
 	else:
             return redirect(url_for('index', message = 'avatar %d not found' % user_id))
