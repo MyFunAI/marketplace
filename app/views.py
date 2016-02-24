@@ -1,6 +1,7 @@
 from app import app, cache, avatar_uploader
 from config import *
 from db_utils import *
+from exceptions import ResourceUnavailable
 from model_utils import *
 from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json
 from .models import Customer, Expert, Topic, Category, Comment
@@ -208,22 +209,29 @@ def handle_recommends():
 def handle_avatar(user_id):
     if request.method == 'POST':
 	if 'avatar' in request.files and 'user_type' in request.form:
-	    ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
-            filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
-	    full_path = os.path.join('avatars', filename)
 	    if request.form['user_type'] == 'customer':
 		#Customers
 		user = Customer.query.filter_by(user_id = user_id).first()
-		user.avatar_url = full_path 
 	    else:
 		#Experts 
 		user = Expert.query.filter_by(user_id = user_id).first()
+	    if user:
+	        ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
+                filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
+	        full_path = os.path.join('avatars', filename)
 		user.avatar_url = full_path 
-            db.session.commit()
-	    #avatar saved, filename =  17526161080979456/original.jpg
-            return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
+                db.session.commit()
+	        #avatar saved, filename =  17526161080979456/original.jpg
+                return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
+	    else:
+	        raise ResourceUnavailable('User not found in database', status_code = 404)
 	else:
-            return redirect(url_for('index', message = 'avatar %d not found' % user_id))
+	    msg = ''
+	    if 'avatar' not in request.files:
+		msg = 'avatar image not provided in request'
+	    if 'user_type' not in request.form:
+		msg += ', user type missing in request'
+	    raise ResourceUnavailable(msg, status_code = 400)
     else:
 	#Find the full image path
 	filenames = glob.glob(os.path.join(PHOTO_BASE_DIR, 'avatars', str(user_id), ORIGINAL_PHOTO_FILENAME + '*'))
@@ -231,7 +239,7 @@ def handle_avatar(user_id):
 	    ext = os.path.splitext(filenames[0])
 	    return send_file(filenames[0], mimetype = 'image/' + ext[1][1:])
 	else:
-            return redirect(url_for('index', message = 'avatar for %d does not exist' % user_id))
+	    raise ResourceUnavailable('Avatar not found on server', status_code = 410)
 
 """
 	To get instruction 
@@ -270,3 +278,10 @@ def test():
 def create_data():
     create_data_in_db()
     return "Data created!"
+
+@app.errorhandler(ResourceUnavailable)
+def handle_missing_resource(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
+
