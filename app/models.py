@@ -75,7 +75,7 @@ class BaseUser(db.Model):
 	primaryjoin = (followers.c.follower_id == user_id), 
         secondaryjoin = (followers.c.followee_id == user_id), 
         backref = db.backref('followers', lazy='dynamic'), 
-        lazy='dynamic'
+        lazy = 'dynamic'
     )
 
     def is_following_expert(self, user):
@@ -118,6 +118,25 @@ class BaseUser(db.Model):
             'avatar_thumbnail_url': self.avatar_thumbnail_url,
 	    'avatar_url': self.avatar_url
 	}
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        try:
+            return unicode(self.user_id)  # python 2
+        except NameError:
+            return str(self.user_id)  # python 3
+
 
     __mapper_args__ = {
         'polymorphic_identity':'base_user',
@@ -389,18 +408,6 @@ class Expert(BaseUser):
                 break
             version += 1
         return new_nickname
-
-    @property
-    def is_authenticated(self):
-        return True
-
-    @property
-    def is_active(self):
-        return True
-
-    @property
-    def is_anonymous(self):
-        return False
 
     """
 	Load the customers that have shown interests in this expert.

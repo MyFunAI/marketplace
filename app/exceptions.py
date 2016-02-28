@@ -1,6 +1,6 @@
 
 
-class ResourceUnavailable(Exception):
+class BadThings(Exception):
 
     status_code = 404
 

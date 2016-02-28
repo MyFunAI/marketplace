@@ -1,9 +1,9 @@
 from app import app, cache, avatar_uploader
 from config import *
 from db_utils import *
-from exceptions import ResourceUnavailable
+from exceptions import BadThings
 from model_utils import *
-from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json
+from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json, make_response
 from .models import Customer, Expert, Topic, Category, Comment
 from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
 from werkzeug import secure_filename
@@ -219,19 +219,20 @@ def handle_avatar(user_id):
 	        ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
                 filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
 	        full_path = os.path.join('avatars', filename)
-		user.avatar_url = full_path 
+		user.avatar_url = full_path
+		db.session.flush()
                 db.session.commit()
 	        #avatar saved, filename =  17526161080979456/original.jpg
                 return redirect(url_for('index', message = 'avatar %s created successfully' % filename))
 	    else:
-	        raise ResourceUnavailable('User not found in database', status_code = 404)
+	        raise BadThings('User not found', status_code = 404)
 	else:
 	    msg = ''
 	    if 'avatar' not in request.files:
 		msg = 'avatar image not provided in request'
 	    if 'user_type' not in request.form:
 		msg += ', user type missing in request'
-	    raise ResourceUnavailable(msg, status_code = 400)
+	    raise BadThings(msg, status_code = 400)
     else:
 	#Find the full image path
 	filenames = glob.glob(os.path.join(PHOTO_BASE_DIR, 'avatars', str(user_id), ORIGINAL_PHOTO_FILENAME + '*'))
@@ -239,7 +240,7 @@ def handle_avatar(user_id):
 	    ext = os.path.splitext(filenames[0])
 	    return send_file(filenames[0], mimetype = 'image/' + ext[1][1:])
 	else:
-	    raise ResourceUnavailable('Avatar not found on server', status_code = 410)
+	    raise BadThings('Avatar not found on server', status_code = 410)
 
 """
 	To get instruction 
@@ -263,6 +264,45 @@ def category(category_id):
     else:
         return jsonify({'Category':category.serialize(category)})
 
+"""
+    A customer shows interests on an expert.
+    TO-DO: handle login-required issues.
+    @param user_id - user id of an expert
+"""
+@app.route('/interestedins/<int:user_id>', methods = ['POST', 'GET', 'DELETE'])
+def follow(user_id):
+    user = Expert.query.filter_by(user_id = user_id).first()
+    if user is None:
+	raise BadThings('Target expert not found', status_code = 404)
+    if request.method == 'POST':
+        if user == g.user:
+   	    raise BadThings('Cannot follow yourself', status_code = 400)
+        u = g.user.follow_expert(user)
+        if u is None:
+            return BadThings('Cannot follow expert %d' % user_id, status_code = 400)
+        db.session.add(u)
+        db.session.commit()
+        return make_response(jsonify({'message': 'following expert %d successfully' % user_id}), 200)
+    elif request.method == 'GET':
+	if g.user.is_following_expert(user):
+	    msg = 'Following target expert %d' % user_id 
+	else:
+	    msg = 'Not following target expert %d' % user_id
+        return make_response(jsonify({'message': msg}), 200)
+    elif request.method == 'DELETE':
+	#delete the interested-in relationship, i.e., the customer unfollows the expert
+	u = g.user.unfollow_expert(user)
+        if u is None:
+            return BadThings('Cannot unfollow expert %d' % user_id, status_code = 400)
+        db.session.add(u)
+        db.session.commit()
+        return make_response(jsonify({'message': 'unfollowing expert %d successfully' % user_id}), 200)
+    else:
+        return make_response(jsonify({'message': 'ACTION not supported'}), 403)
+
+@app.route("/login/<user>/<password>")
+def test_login(user, password):
+    return "user : %s password : %s" % (user, password)
 	
 @app.route('/test')
 def test():
@@ -279,7 +319,7 @@ def create_data():
     create_data_in_db()
     return "Data created!"
 
-@app.errorhandler(ResourceUnavailable)
+@app.errorhandler(BadThings)
 def handle_missing_resource(error):
     response = jsonify(error.to_dict())
     response.status_code = error.status_code

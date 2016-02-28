@@ -162,7 +162,7 @@ class TestCase(unittest.TestCase):
 	assert len(test_topic_1.get_ongoing_requests()) == 0
 	assert len(test_topic_1.get_completed_requests()) == 2
 	assert round(test_topic_1.compute_rating(), 2) == 4.70
-
+ 
     """
     @unittest.skip("Not being tested for the moment")
     def test_avatar(self):
