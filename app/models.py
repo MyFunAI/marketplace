@@ -79,12 +79,16 @@ class BaseUser(db.Model):
     )
 
     def is_following_expert(self, user):
-        return user.is_expert() and (self.followees.filter(followers.c.followee_id == user.user_id).count() > 0)
+        return user and user.is_expert() and (self.followees.filter(followers.c.followee_id == user.user_id).count() > 0)
 
     def follow_expert(self, user):
-        if user.is_expert() and not self.is_following_expert(user):
+        if user and user.is_expert() and not self.is_following_expert(user):
             self.followees.append(user)
             return self
+
+    def follow_expert_by_id(self, user_id):
+        user = Expert.query.filter_by(user_id = user_id).first()
+	self.follow_expert(user)
 
     def unfollow_expert(self, user):
         if user.is_expert() and self.is_following_expert(user):
@@ -251,12 +255,26 @@ class Customer(BaseUser):
 	return Expert.query.filter(Expert.user_id.in_(expert_ids))
 
     """
+	Serialize fields except for the interested-in experts.
+    """
+    def serialize_simple(self):
+	json_obj = super(Customer, self).serialize()
+	json_obj['phone_number'] = self.phone_number
+	experts = self.load_followed_experts().all()
+	json_obj['interested_in_expert_count'] = len(experts)
+	json_obj['completed_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if r.is_completed()] 
+	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if not r.is_completed()] 
+	return json_obj
+
+    """
 	Serialize the current object into json. All fields of the object are fully rendered as well.
     """
     def serialize(self):
 	json_obj = super(Customer, self).serialize()
 	json_obj['phone_number'] = self.phone_number
-	json_obj['interested_in_experts'] = [e.serialize() for e in self.load_followed_experts().all()]
+	experts = self.load_followed_experts().all()
+	json_obj['interested_in_experts'] = [e.serialize_simple() for e in experts]
+	json_obj['interested_in_expert_count'] = len(experts)
 	json_obj['completed_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if r.is_completed()] 
 	json_obj['ongoing_topic_requests'] = [r.serialize() for r in self.topic_requests.all() if not r.is_completed()] 
         return json_obj
@@ -418,6 +436,23 @@ class Expert(BaseUser):
 	return Customer.query.filter(Customer.user_id.in_(customer_ids))
 
     """
+	Serialize the fields except for the following customers.
+    """
+    def serialize_simple(self):
+	customers = self.load_following_customers().all()
+	json_obj = super(Expert, self).serialize()
+	json_obj['degree'] = self.degree
+	json_obj['serving_topics'] = [r.serialize() for r in self.serving_topics]
+        json_obj['university'] = self.university 
+	json_obj['major'] = self.major
+        json_obj['rating'] = self.rating
+        json_obj['bio'] = self.bio
+	json_obj['credits'] = self.credits
+	json_obj['comments'] = [c.serialize() for c in self.get_comments()]
+	json_obj['following_customer_count'] = len(customers)
+        return json_obj
+
+    """
 	Serialize the current object into json
     """
     def serialize(self):
@@ -432,7 +467,7 @@ class Expert(BaseUser):
 	json_obj['credits'] = self.credits
 	json_obj['comments'] = [c.serialize() for c in self.get_comments()]
 	json_obj['following_customer_count'] = len(customers)
-	json_obj['following_customers'] = [c.serialize() for c in customers]
+	json_obj['following_customers'] = [c.serialize_simple() for c in customers]
         return json_obj
 
     """

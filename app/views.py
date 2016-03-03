@@ -4,11 +4,25 @@ from db_utils import *
 from exceptions import BadThings
 from model_utils import *
 from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json, make_response
+from flask.ext.login import LoginManager, UserMixin, login_user, logout_user, current_user
 from .models import Customer, Expert, Topic, Category, Comment
 from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
+from .oauth_service import *
 from werkzeug import secure_filename
 import glob
 import os
+
+@app.before_request
+def before_request():
+    g.user = current_user
+    """
+    if g.user.is_authenticated:
+        g.user.last_seen = datetime.utcnow()
+        db.session.add(g.user)
+        db.session.commit()
+        g.search_form = SearchForm()
+    g.locale = get_locale()
+    """
 
 @app.route('/')
 @app.route('/index')
@@ -16,6 +30,48 @@ def index(message = 'Hello World!'):
     #import pdb; pdb.set_trace()
     content = CategoryService.load_categories()
     return message
+
+"""
+@app.route('/user_info')
+def get_user_info():
+    if 'qq_token' in session:
+        data = update_qq_api_request_data()
+        resp = qq.get('/user/get_user_info', data=data)
+        return jsonify(status=resp.status, data=resp.data)
+    return redirect(url_for('login'))
+
+@app.route('/login')
+def login():
+    return qq.authorize(callback=url_for('authorized', _external=True))
+
+@app.route('/logout')
+def logout():
+    session.pop('qq_token', None)
+    return redirect(url_for('get_user_info'))
+
+@app.route('/login/authorized')
+def authorized():
+    resp = qq.authorized_response()
+    if resp is None:
+        return 'Access denied: reason=%s error=%s' % (
+            request.args['error_reason'],
+            request.args['error_description']
+        )
+    session['qq_token'] = (resp['access_token'], '')
+
+    # Get openid via access_token, openid and access_token are needed for API calls
+    resp = qq.get('/oauth2.0/me', {'access_token': session['qq_token'][0]})
+    resp = json_to_dict(resp.data)
+    if isinstance(resp, dict):
+        session['qq_openid'] = resp.get('openid')
+
+    return redirect(url_for('get_user_info'))
+
+
+@qq.tokengetter
+def get_qq_oauth_token():
+    return session.get('qq_token')
+"""
 
 # import pdb;pdb.set_trace()
 @app.route('/api/v1/customers/<customer_id>/', methods = ['GET'])

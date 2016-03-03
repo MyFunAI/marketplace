@@ -102,3 +102,6 @@ CACHE_TIMEOUT = 120
 PHOTO_BASE_DIR = '/home/guang/Documents/code/vbigdata/iaskdata-marketplace/app/resources/photos'
 ORIGINAL_PHOTO_FILENAME = 'original'
 
+QQ_APP_ID = '1105136607'
+QQ_APP_KEY = 'd9EKBHt0jYVJJn9v'
+
