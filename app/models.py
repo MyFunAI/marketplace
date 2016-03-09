@@ -303,7 +303,7 @@ class Expert(BaseUser):
 	'Category',
 	secondary = category_tags,
         backref = db.backref('experts', lazy='dynamic'),
-	lazy = 'dynamic'
+	lazy = 'joined'
     )
 
     __mapper_args__ = {
@@ -362,10 +362,18 @@ class Expert(BaseUser):
     """
     def has_tag(self, tag = None, first_level_index = -1, second_level_index = -1):
 	if tag:
-            return self.tags.filter(category_tags.c.category_id == tag.category_id).count() > 0
+            #return self.tags.filter(category_tags.c.category_id == tag.category_id).count() > 0
+	    for t in self.tags:
+		if tag.category_id == t.category_id:
+		    return True
+	    return False
 	else:
             category_id = build_category_id(first_level_index, second_level_index)
-            return self.tags.filter(category_tags.c.category_id == category_id).count() > 0
+            #return self.tags.filter(category_tags.c.category_id == category_id).count() > 0
+	    for t in self.tags:
+		if category_id == t.category_id:
+		    return True
+	    return False
  
     def build_category(self, first_level_index, second_level_index):
         return Category(build_category_id(first_level_index, second_level_index))
@@ -468,6 +476,7 @@ class Expert(BaseUser):
 	json_obj['comments'] = [c.serialize() for c in self.get_comments()]
 	json_obj['following_customer_count'] = len(customers)
 	json_obj['following_customers'] = [c.serialize_simple() for c in customers]
+	json_obj['tags'] = [t.serialize() for t in self.tags]
         return json_obj
 
     """
@@ -588,7 +597,7 @@ class Topic(db.Model):
 """
 class TopicRequest(db.Model):
     __tablename__ = 'topic_request'
-    request_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
+    request_id = db.Column(db.Integer, primary_key = True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.user_id'))
     topic_id = db.Column(db.Integer, db.ForeignKey('topic.topic_id'))
     request_stage = db.Column(db.Integer)
@@ -689,11 +698,16 @@ class TopicRequest(db.Model):
 	self.topic_rated_time = datetime.utcnow()
 
     def serialize(self):
+	if self.comment:
+	    comment_str = self.comment.serialize()
+	else:
+	    comment_str = ""
 	return {
 	    'request_id': self.request_id,
             'customer_id': self.customer_id,
 	    'topic_id': self.topic.topic_id,
 	    'topic_title': self.topic.title,
+	    'expert_id': self.topic.expert_id,
 	    'request_stage': self.request_stage,
 	    'topic_requested_time': self.topic_requested_time,
 	    'topic_accepted_time': self.topic_accepted_time,
@@ -701,7 +715,7 @@ class TopicRequest(db.Model):
 	    'topic_scheduled_time': self.topic_scheduled_time,
 	    'topic_served_time': self.topic_served_time,
 	    'topic_rated_time': self.topic_rated_time,
-	    'topic_comment': self.comment.serialize()
+	    'topic_comment': comment_str
 	}
 
 """

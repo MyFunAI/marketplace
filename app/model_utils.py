@@ -10,7 +10,7 @@ import codecs
 import json
 import os
 
-user_id_handler = IDWorker(WORKER_ID, DATA_CENTER_ID)
+id_handler = IDWorker(WORKER_ID, DATA_CENTER_ID)
 
 """
     We use the Twitter snowflake algorithm to generate a unique 64-bit user id.
@@ -18,9 +18,8 @@ user_id_handler = IDWorker(WORKER_ID, DATA_CENTER_ID)
 
     @return
 """
-def create_user_id():
-    #max_user_id = db.session.query(db.func.max(User.numLogins)).scalar()
-    return user_id_handler.get_id()
+def create_id():
+    return id_handler.get_id()
 
 def build_category_id(first_level_index, second_level_index):
     return first_level_index * 100 + second_level_index

@@ -128,13 +128,13 @@ class TestCase(unittest.TestCase):
 	test_category_1 = build_category_1()
 	assert test_expert.remove_tag(test_category_1) is None
 	t = test_expert.add_tag(test_category_1)
-	assert test_expert.tags.count() == 1
-	assert test_expert.tags.first().category_id == 102 
+	assert len(test_expert.tags) == 1
+	assert test_expert.tags[0].category_id == 102 
 	assert test_expert.has_tag(test_category_1)
 	test_category_2 = build_category_2()
 	t = test_expert.add_tag(test_category_2)
-	assert test_expert.tags.count() == 2
-	assert test_expert.tags.all()[1].category_id == 103
+	assert len(test_expert.tags) == 2
+	assert test_expert.tags[1].category_id == 103
 
     def test_average_topic_rating(self):
 	test_topic_request_1 = build_topic_request_1()

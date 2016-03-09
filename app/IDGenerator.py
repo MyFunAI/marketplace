@@ -5,6 +5,8 @@ import re
 
 """
 	ID creator that builds a unique 64-bit id via the Twitter snowflake algorithm.
+	This class will generate IDs for many other classes, including Custmer, Expert,
+	Topic, TopicRequest, Comment, etc.
 """
 class IDWorker:
 	def __init__(self, worker_id, data_center_id):

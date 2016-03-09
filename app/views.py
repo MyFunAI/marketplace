@@ -5,7 +5,7 @@ from exceptions import BadThings
 from model_utils import *
 from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json, make_response
 from flask.ext.login import LoginManager, UserMixin, login_user, logout_user, current_user
-from .models import Customer, Expert, Topic, Category, Comment
+from .models import Customer, Expert, Topic, TopicRequest, Category, Comment
 from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
 from .oauth_service import *
 from werkzeug import secure_filename
@@ -88,7 +88,7 @@ def handle_customers():
         #create a customer here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    user_id = create_user_id()
+	    user_id = create_id()
             customer = Customer(
     		user_id = user_id,
     		email = obj.get('email', ''),
@@ -111,13 +111,18 @@ def handle_customers():
             return jsonify({'customers':[user.serialize() for user in users]})
     return "Customer created!"
 
+"""
+    This endpoint only handles basic fields of an expert class, and that is what actually happens when
+    an expert is onboard.
+    Other complex fields of expert class such as TopicRequests are not added by this endpoint.
+"""
 @app.route('/api/v1/experts', methods = ['POST', 'GET'])
 def handle_experts():
     if request.method == 'POST':
         #create experts here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    user_id = create_user_id()
+	    user_id = create_id()
 	    expert = Expert(
     		user_id = user_id,
     		email = obj.get('email', ''),
@@ -187,7 +192,7 @@ def handle_comments():
         #create comments here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    comment_id = obj.get('comment_id', -1)
+	    comment_id = create_id()
 	    comment = Comment(
     		comment_id = comment_id,
 		content = obj.get('content', ''),
@@ -211,7 +216,7 @@ def handle_topics():
         #create topics here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    topic_id = obj.get('topic_id', -1)
+	    topic_id = create_id()
 	    topic = Topic(
 		topic_id = topic_id,
     		body = obj.get('body', ''),
@@ -226,7 +231,7 @@ def handle_topics():
         return redirect(url_for('index', message = 'content-type incorrect, topic creation failed'))
     else:
         topics = Topic.query.all()
-        if s is None:
+        if topics is None:
             return jsonify({})
         else:
             return jsonify({'topics' : [topic.serialize() for topic in topics]})
@@ -237,7 +242,40 @@ def handle_topic(topic_id):
     if topic is None:
 	return jsonify({})
     else:
-        return jsonify({'Topic':topic.serialize()})
+        return jsonify({'topic':topic.serialize()})
+
+@app.route('/api/v1/requests', methods = ['POST', 'GET'])
+def handle_requests():
+    if request.method == 'POST':
+        #create topic request here
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+    	    request_id = create_id()
+	    r = TopicRequest(
+	        request_id = request_id,
+    	        customer_id = obj.get('customer_id', -1),
+		topic_id = obj.get('topic_id', -1),
+		request_stage = obj.get('request_stage', 1),
+    		topic_requested_time = datetime.datetime.utcnow()
+	    )
+	    db.session.add(r)
+	    db.session.commit()
+            return redirect(url_for('index', message = 'topic request %d created successfully' % request_id))
+        return redirect(url_for('index', message = 'content-type incorrect, topic request creation failed'))
+    else:
+        requests = TopicRequest.query.all()
+        if requests is None:
+            return jsonify({})
+        else:
+            return jsonify({'topic_requests' : [r.serialize() for r in requests]})
+
+@app.route('/api/v1/request/<request_id>/', methods = ['GET'])
+def handle_request(request_id):
+    request = TopicRequest.query.filter_by(request_id = request_id).first()
+    if request is None:
+	return jsonify({})
+    else:
+        return jsonify({'topic_request':request.serialize()})
 
 """
     The default is to rank experts in the rating-descending order.
