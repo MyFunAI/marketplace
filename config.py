@@ -9,7 +9,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-basedir = os.path.abspath(os.path.dirname(__file__))
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 CSRF_ENABLED = True
 SECRET_KEY = 'you-will-never-guess'
@@ -22,14 +22,14 @@ OPENID_PROVIDERS = [
     {'name': 'MyOpenID', 'url': 'https://www.myopenid.com'}]
 
 if os.environ.get('DATABASE_URL') is None:
-    SQLALCHEMY_DATABASE_URI = ('sqlite:///' + os.path.join(basedir, 'iaskdata.db') +
-    #SQLALCHEMY_DATABASE_URI = ('mysql+mysqldb:///' + os.path.join(basedir, 'iaskdata-mysql.db') +
+    SQLALCHEMY_DATABASE_URI = ('sqlite:///' + os.path.join(BASEDIR, 'iaskdata.db') +
+    #SQLALCHEMY_DATABASE_URI = ('mysql+mysqldb:///' + os.path.join(BASEDIR, 'iaskdata-mysql.db') +
                                '?check_same_thread=False')
 else:
     SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
-SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
+SQLALCHEMY_MIGRATE_REPO = os.path.join(BASEDIR, 'db_repository')
 SQLALCHEMY_RECORD_QUERIES = True
-WHOOSH_BASE = os.path.join(basedir, 'search.db')
+WHOOSH_BASE = os.path.join(BASEDIR, 'search.db')
 
 # Whoosh does not work on Heroku
 WHOOSH_ENABLED = os.environ.get('HEROKU') is None
@@ -64,7 +64,7 @@ MAX_SEARCH_RESULTS = 50
 
 # Expert category file path
 # EXPERT_CATEGORY_PATH = './app/resources/expert_categories.txt'
-EXPERT_CATEGORY_PATH = os.path.join(basedir, 'app/resources/expert_categories.txt')
+EXPERT_CATEGORY_PATH = os.path.join(BASEDIR, 'app/resources/expert_categories.txt')
 INSTRUCTION_IMAGE_PATH = '/api/v1/resources/images/instruction/'
 USER_IMAGE_PATH = '/api/v1/resources/images/user/'
 CATEGORY_ID_MULTIPLIER = 100
@@ -99,7 +99,8 @@ TOPIC_RATED_MASK = 1 << (TOPIC_RATED - 1)
 
 CACHE_TIMEOUT = 120
 
-PHOTO_BASE_DIR = '/home/guang/Documents/code/vbigdata/iaskdata-marketplace/app/resources/photos'
+#PHOTO_BASE_DIR = '/home/guang/Documents/code/vbigdata/iaskdata-marketplace/app/resources/photos'
+PHOTO_BASE_DIR = BASEDIR + '/app/resources/photos'
 ORIGINAL_PHOTO_FILENAME = 'original'
 
 QQ_APP_ID = '1105136607'
