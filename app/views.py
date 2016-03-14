@@ -89,20 +89,21 @@ def handle_customers():
         #create a customer here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    user_id = create_id()
-            customer = Customer(
-    		user_id = user_id,
-    		email = obj.get('email', ''),
-    		last_seen = datetime.datetime.utcnow(),
-    		name = obj.get('name', ''),
-    		company = obj.get('company', ''),
-    		title = obj.get('title', ''),
-    		about_me = obj.get('about_me', ''),
-		phone_number = obj.get('phone_number', '')
-	    )
-            db.session.add(customer)
+	    for i in range(len(obj)):
+   	        user_id = create_id()
+                customer = Customer(
+    		    user_id = user_id,
+    		    email = obj[i].get('email', ''),
+    		    last_seen = datetime.datetime.utcnow(),
+    		    name = obj[i].get('name', ''),
+    		    company = obj[i].get('company', ''),
+    		    title = obj[i].get('title', ''),
+    		    about_me = obj[i].get('about_me', ''),
+		    phone_number = obj[i].get('phone_number', '')
+	        )
+                db.session.add(customer)
             db.session.commit()
-            return redirect(url_for('index', message = 'customer %d created successfully' % user_id))
+            return redirect(url_for('index', message = '%d customer created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, customer creation failed'))
     else:
         users = CustomerService.load_customers()
@@ -123,24 +124,25 @@ def handle_experts():
         #create experts here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    user_id = create_id()
-	    expert = Expert(
-    		user_id = user_id,
-    		email = obj.get('email', ''),
-    		last_seen = datetime.datetime.utcnow(),
-    		name = obj.get('name', ''),
-    		company = obj.get('company', ''),
-    		title = obj.get('title', ''),
-    		about_me = obj.get('about_me', ''),
-    		degree = obj.get('degree', ''),
-		university = obj.get('university', ''),
-    		major = obj.get('major', ''),
-    		bio = obj.get('bio', ''),
-		credits = obj.get('credits', 0)
-	    )
-            db.session.add(expert)
+	    for i in range(len(obj)):
+  	        user_id = create_id()
+	        expert = Expert(
+    		    user_id = user_id,
+    		    email = obj[i].get('email', ''),
+    		    last_seen = datetime.datetime.utcnow(),
+    		    name = obj[i].get('name', ''),
+    		    company = obj[i].get('company', ''),
+    		    title = obj[i].get('title', ''),
+    		    about_me = obj[i].get('about_me', ''),
+    		    degree = obj[i].get('degree', ''),
+		    university = obj[i].get('university', ''),
+    		    major = obj[i].get('major', ''),
+    		    bio = obj[i].get('bio', ''),
+		    credits = obj[i].get('credits', 0)
+	        )
+                db.session.add(expert)
             db.session.commit()
-            return redirect(url_for('index', message = 'expert %d created successfully' % user_id))
+            return redirect(url_for('index', message = '%d expert created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, expert creation failed'))
     else:
         users = ExpertService.load_experts()
@@ -193,16 +195,17 @@ def handle_comments():
         #create comments here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    comment_id = create_id()
-	    comment = Comment(
-    		comment_id = comment_id,
-		content = obj.get('content', ''),
-    		request_id = obj.get('request_id', -1),
-    		rating = obj.get('rating', 0.0)
-	    )
-            db.session.add(comment)
+	    for i in range(len(obj)):
+	        comment_id = create_id()
+	        comment = Comment(
+    		    comment_id = comment_id,
+		    content = obj[i].get('content', ''),
+    		    request_id = obj[i].get('request_id', -1),
+    		    rating = obj[i].get('rating', 0.0)
+	        )
+                db.session.add(comment)
             db.session.commit()
-            return redirect(url_for('index', message = 'comment %d created successfully' % comment_id))
+            return redirect(url_for('index', message = '%d comment created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, comment creation failed'))
     else:
         comments = CommentService.load_comments()
@@ -217,18 +220,19 @@ def handle_topics():
         #create topics here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-	    topic_id = create_id()
-	    topic = Topic(
-		topic_id = topic_id,
-    		body = obj.get('body', ''),
-    		title = obj.get('title', ''),
-    		created_time = datetime.datetime.utcnow(),
-    		rate = obj.get('rate', 0.0),
-    		expert_id = obj.get('expert_id', -1)
-	    )
-            db.session.add(topic)
+	    for i in range(len(obj)):
+	        topic_id = create_id()
+	        topic = Topic(
+		    topic_id = topic_id,
+    		    body = obj[i].get('body', ''),
+    		    title = obj[i].get('title', ''),
+    		    created_time = datetime.datetime.utcnow(),
+    		    rate = obj[i].get('rate', 0.0),
+    		    expert_id = obj[i].get('expert_id', -1)
+	        )
+                db.session.add(topic)
             db.session.commit()
-            return redirect(url_for('index', message = 'topic %d created successfully' % topic_id))
+            return redirect(url_for('index', message = '%d topic created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, topic creation failed'))
     else:
         topics = Topic.query.all()
@@ -251,17 +255,18 @@ def handle_requests():
         #create topic request here
 	if request.headers['Content-Type'] == 'application/json':
             obj = request.get_json()
-    	    request_id = create_id()
-	    r = TopicRequest(
-	        request_id = request_id,
-    	        customer_id = obj.get('customer_id', -1),
-		topic_id = obj.get('topic_id', -1),
-		request_stage = obj.get('request_stage', 1),
-    		topic_requested_time = datetime.datetime.utcnow()
-	    )
-	    db.session.add(r)
+	    for i in range(len(obj)):
+    	        request_id = create_id()
+	        r = TopicRequest(
+	            request_id = request_id,
+    	            customer_id = obj[i].get('customer_id', -1),
+		    topic_id = obj[i].get('topic_id', -1),
+		    request_stage = obj[i].get('request_stage', 1),
+    		    topic_requested_time = datetime.datetime.utcnow()
+	        )
+	        db.session.add(r)
 	    db.session.commit()
-            return redirect(url_for('index', message = 'topic request %d created successfully' % request_id))
+            return redirect(url_for('index', message = '%d topic request created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, topic request creation failed'))
     else:
         requests = TopicRequest.query.all()
