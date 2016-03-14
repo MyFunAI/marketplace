@@ -9,7 +9,7 @@ import os
 import unittest
 from datetime import datetime, timedelta
 
-from config import basedir
+from config import BASEDIR
 from app import app, db
 #from app.models import BaseUser, Customer, Expert, Topic, TopicRequest, Comment
 #from app.translate import microsoft_translate
@@ -20,7 +20,7 @@ class TestCase(unittest.TestCase):
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + \
-            os.path.join(basedir, 'test.db')
+            os.path.join(BASEDIR, 'test.db')
         db.create_all()
 
     def tearDown(self):
@@ -263,7 +263,7 @@ if __name__ == '__main__':
     cov.save()
     print "\n\nCoverage Report:\n"
     cov.report()
-    print "\nHTML version: " + os.path.join(basedir, "tmp/coverage/index.html")
+    print "\nHTML version: " + os.path.join(BASEDIR, "tmp/coverage/index.html")
     cov.html_report(directory='tmp/coverage')
     cov.erase()
     """

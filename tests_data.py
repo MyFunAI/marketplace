@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 from datetime import datetime, timedelta
-from config import basedir
+from config import BASEDIR
 from app import app, db
 from app.models import BaseUser, Customer, Expert, Topic, Category, TopicRequest, Comment
 from app.model_utils import *

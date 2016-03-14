@@ -5,9 +5,10 @@ from exceptions import BadThings
 from model_utils import *
 from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json, make_response
 from flask.ext.login import LoginManager, UserMixin, login_user, logout_user, current_user
-from .models import Customer, Expert, Topic, TopicRequest, Category, Comment
+from .models import Customer, Expert, Topic, TopicRequest, Category, Comment, Conversation
 from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
 from .oauth_service import *
+from .timeline_service import *
 from werkzeug import secure_filename
 import glob
 import os
@@ -277,6 +278,40 @@ def handle_request(request_id):
     else:
         return jsonify({'topic_request':request.serialize()})
 
+@app.route('/api/v1/conversations', methods = ['POST', 'GET'])
+def handle_conversations():
+    if request.method == 'POST':
+	if request.headers['Content-Type'] == 'application/json':
+            obj = request.get_json()
+	    for i in range(len(obj)):
+	        conv_id = create_id()
+	        c = Conversation(
+    		    conversation_id = conv_id,
+    		    message = obj[i].get('message', 'no message'),
+		    request_id = obj[i].get('request_id', -1),
+		    user_1_id = obj[i].get('user_1_id', -1),
+		    user_2_id = obj[i].get('user_2_id', -1),
+    		    timestamp = datetime.datetime.utcnow()
+	        )
+	        db.session.add(c)
+	    db.session.commit()
+            return redirect(url_for('index', message = '%d conversations created successfully' % len(obj)))
+        return redirect(url_for('index', message = 'content-type incorrect, conversation creation failed'))
+    else:
+        convs = Conversation.query.order_by(Conversation.timestamp.desc()).all()
+        if convs is None:
+            return jsonify({})
+        else:
+            return jsonify({'conversations' : [c.serialize() for c in convs]})
+
+@app.route('/api/v1/conversation/<conversation_id>/', methods = ['GET'])
+def handle_conversation(conversation_id):
+    conv = Conversation.query.filter_by(conversation_id = conversation_id).first()
+    if conv is None:
+	return jsonify({})
+    else:
+        return jsonify({'conversation' : conv.serialize()})
+
 """
     The default is to rank experts in the rating-descending order.
     Rating is computed based on the ratings on all topics of an expert.
@@ -393,6 +428,12 @@ def follow(user_id):
         return make_response(jsonify({'message': 'unfollowing expert %d successfully' % user_id}), 200)
     else:
         return make_response(jsonify({'message': 'ACTION not supported'}), 403)
+
+@app.route('/hometimeline/<int:user_id>', methods = ['GET'])
+def get_hometimeline(user_id):
+    user = Expert.query.filter_by(user_id = user_id).first()
+    home_timeline = TimelineService.load_hometimeline()
+    return jsonify({'home_timeline' : home_timeline})
 
 @app.route("/login/<user>/<password>")
 def test_login(user, password):

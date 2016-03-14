@@ -3,7 +3,7 @@ from config import *
 from flask import Flask
 from flask.ext.cache import Cache
 from file_utils import *
-from .models import Customer, Expert, Topic, Category, Comment
+from .models import Customer, Expert, Topic, Category, Comment, Conversation
 
 class CustomerService:
 
@@ -61,5 +61,13 @@ class CategoryService:
 
 
 class ImageService:
-    pass
+    """
+	Delete old avatars a user uploaded.
+	TO-DO: instead of triggering this function call every time a user uploads an avatar, a daily
+	cron job could be scheduled alternatively.
+    """
+    @classmethod
+    def delete_old_avatars(cls, user_id):
+	pass
+
 

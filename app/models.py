@@ -614,6 +614,11 @@ class TopicRequest(db.Model):
     comment = db.relationship('Comment', uselist = False, backref = 'topic_request')
 
     """
+	One to many relationship between TopicRequest and Conversation
+    """
+    conversations = db.relationship('Conversation', backref = 'topic_request', lazy = 'dynamic')
+
+    """
 	Call this method when a TopicRequest object is created
     """
     def init_stage(self):
@@ -645,19 +650,29 @@ class TopicRequest(db.Model):
     def move_to_next_stage(self):
 	self.request_stage = self.request_stage << 1
 	t = datetime.utcnow()
-	if self.request_stage & TOPIC_ACCEPTED_MASK:
+	stage = self.get_stage()
+	if stage == TOPIC_ACCEPTED:
 	    self.topic_accepted_time = t
-	elif self.request_stage & TOPIC_PAID_MASK:
+	elif stage == TOPIC_PAID:
 	    self.topic_paid_time = t
-	elif self.request_stage & TOPIC_SCHEDULED_MASK:
+	elif stage == TOPIC_SCHEDULED:
 	    self.topic_scheduled_time = t
-	elif self.request_stage & TOPIC_SERVED_MASK:
+	elif stage == TOPIC_SERVED:
 	    self.topic_served_time = t
-	elif self.request_stage & TOPIC_RATED_MASK:
+	elif stage == TOPIC_RATED:
 	    self.topic_rated_time = t
 	else:
 	    self.topic_rated_time = t 
 	return self.request_stage
+
+    def is_accepted(self):
+	return self.get_stage() >= TOPIC_ACCEPTED
+
+    def is_paid(self):
+	return self.get_stage() >= TOPIC_PAID
+
+    def is_scheduled(self):
+	return self.get_stage() >= TOPIC_SCHEDULED
 
     """
 	@return True - completed; False - still going on
@@ -715,8 +730,24 @@ class TopicRequest(db.Model):
 	    'topic_scheduled_time': self.topic_scheduled_time,
 	    'topic_served_time': self.topic_served_time,
 	    'topic_rated_time': self.topic_rated_time,
-	    'topic_comment': comment_str
+	    'topic_comment': comment_str,
+	    'conversations': [c.serialize() for c in self.conversations.order_by(Conversation.timestamp.desc()).all()]
 	}
+
+    """
+	@param conv - a new Conversation object
+	TO-DO: recalling a conversation like in WeChat
+    """
+    def add_conversation(self, conv):
+	if self.is_conversation_on():
+	    self.conversations.append(conv)
+	    return self
+
+    """
+	The two parties can only chat between the paid stage and scheduled stage.
+    """
+    def is_conversation_on(self):
+	return self.is_paid() and not self.is_scheduled()
 
 """
     The skill categories of an expert, represented by the indices into the category text.
@@ -741,8 +772,32 @@ class Category(db.Model):
 	    'second_level_index' : second_level_index
 	}
 
-if enable_search:
-    whooshalchemy.whoosh_index(app, Topic)
+"""
+    A single conversation between two users (a customer and an expert in our context).
+    A one-to-many relationship exists between TopicRequest and Conversation.
+"""
+class Conversation(db.Model):
+    __tablename__ = 'conversation'
+    conversation_id = db.Column(db.Integer, primary_key = True)
+    request_id = db.Column(db.Integer, db.ForeignKey('topic_request.request_id'))
+    message = db.Column(db.Text(500))
+
+    #user_1 is the src user, i.e., the one sending this message
+    user_1_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
+
+    #user_2 is the dst user, i.e., the one receiving this message
+    user_2_id = db.Column(db.Integer, db.ForeignKey('base_user.user_id'))
+    timestamp = db.Column(db.DateTime) #the time an expert posts this topic
+
+    def serialize(self):
+	return {
+    	    'conversation_id' : self.conversation_id,
+	    'request_id' : self.request_id,
+    	    'message' : self.message,
+    	    'user_1_id' : self.user_1_id,
+    	    'user_2_id' : self.user_2_id,
+    	    'timestamp' : self.timestamp.strftime(TIME_FORMAT)
+	}
 
 """
     A comment corresponds to a topic request object. A customer can request the same topic multiple times (not
@@ -808,3 +863,5 @@ class Instruction(db.Model):
 	    "image_url": INSTRUCTION_IMAGE_PATH + self.image_url
         }
 
+if enable_search:
+    whooshalchemy.whoosh_index(app, Topic)
