@@ -58,15 +58,19 @@ class TestCase(unittest.TestCase):
         assert test_customer_1.add_topic_request(test_topic_1)
         assert test_customer_1.is_topic_being_requested(test_topic_1) is True
         assert test_customer_1.add_topic_request(test_topic_1) is None
-	assert test_customer_1.remove_topic_request(test_topic_1)
+	assert test_customer_1.remove_topic_request_by_topic(test_topic_1)
         assert test_customer_1.is_topic_being_requested(test_topic_1) is False
-	assert test_customer_1.remove_topic_request(test_topic_2) is None
+	assert test_customer_1.remove_topic_request_by_topic(test_topic_2) is None
         assert test_customer_1.is_topic_being_requested(test_topic_2) is False
         assert test_customer_1.add_topic_request(test_topic_2)
+	requests = test_customer_1.get_ongoing_requests_by_topic(test_topic_2)
+	assert len(requests) == 1
 	queried_customer = Customer.query.get(1)
         assert queried_customer.user_id == 1
         assert queried_customer.email == 'larry@iaskdata.com'
         assert queried_customer.topic_requests.first().topic == test_topic_2
+	assert test_customer_1.remove_topic_request_by_request(requests[0])
+	assert len(test_customer_1.get_ongoing_requests_by_topic(test_topic_2)) == 0
 
     def test_customer_complete_topics(self):
 	test_topic_1 = build_topic_1()

@@ -44,5 +44,8 @@ avatar_uploader = UploadSet('avatars', IMAGES)
 configure_uploads(app, avatar_uploader)
 patch_request_class(app, 5 * 1024 * 1024)  #Max 5M photos
 
+background_image_uploader = UploadSet('backgrounds', IMAGES)
+configure_uploads(app, background_image_uploader)
+
 from app import views, models
 

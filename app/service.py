@@ -39,7 +39,28 @@ class ExpertService:
 	return Expert.query.all()
 
 class TopicService:
-    pass
+
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_topic(cls, topic_id):
+        return Topic.query.filter_by(topic_id = topic_id).first()
+
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_topics(cls):
+	return Topic.query.all()
+
+class TopicRequestService:
+
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_request(cls, request_id):
+        return TopicRequest.query.filter_by(request_id = request_id).first()
+
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_requests(cls):
+	return TopicRequest.query.all()
 
 class CommentService:
     @classmethod
@@ -52,11 +73,30 @@ class CommentService:
     def load_comments(cls):
 	return Comment.query.all()
 
+class ConversationService:
+
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_conversation(cls, conversation_id):
+	return Conversation.query.filter_by(conversation_id = conversation_id).first()
+
+    """
+	TO-DO: time ascending order needed as well?
+    """
+    @classmethod
+    @cache.memoize(timeout = CACHE_TIMEOUT)
+    def load_conversations(cls):
+	return Conversation.query.order_by(Conversation.timestamp.desc()).all()
 
 class CategoryService:
     @classmethod
     @cache.cached(timeout = CACHE_TIMEOUT)
     def load_categories(cls):
+	return load_json_file(EXPERT_CATEGORY_PATH)
+
+    @classmethod
+    @cache.cached(timeout = CACHE_TIMEOUT)
+    def load_category(cls, category_id):
 	return load_json_file(EXPERT_CATEGORY_PATH)
 
 
@@ -69,5 +109,4 @@ class ImageService:
     @classmethod
     def delete_old_avatars(cls, user_id):
 	pass
-
 

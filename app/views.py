@@ -1,4 +1,4 @@
-from app import app, cache, avatar_uploader
+from app import app, cache, avatar_uploader, background_image_uploader
 from config import *
 from db_utils import *
 from exceptions import BadThings
@@ -6,7 +6,7 @@ from model_utils import *
 from flask import render_template, redirect, send_file, session, url_for, request, g, jsonify, json, make_response
 from flask.ext.login import LoginManager, UserMixin, login_user, logout_user, current_user
 from .models import Customer, Expert, Topic, TopicRequest, Category, Comment, Conversation
-from .service import CustomerService, ExpertService, TopicService, CategoryService, CommentService
+from .service import *
 from .oauth_service import *
 from .timeline_service import *
 from werkzeug import secure_filename
@@ -75,14 +75,45 @@ def get_qq_oauth_token():
 """
 
 # import pdb;pdb.set_trace()
-@app.route('/api/v1/customers/<customer_id>/', methods = ['GET'])
+"""
+    Edit or retrieve a customer (POST or GET)
+    @param customer_id - customer id
+"""
+@app.route('/api/v1/customers/<customer_id>/', methods = ['POST', 'GET'])
 def handle_customer(customer_id):
-    user = CustomerService.load_customer(customer_id)
-    if user is None:
-	return jsonify({})
+    if request.method == 'POST':
+        #edit an existing customer here
+	if request.headers['Content-Type'] == 'application/json':
+            customer = CustomerService.load_customer(customer_id)
+	    if customer:
+            	obj = request.get_json()
+		if 'email' in obj:
+    		    customer.email = obj['email']
+    		if 'name' in obj:
+		    customer.name = obj['name']
+		if 'company' in obj:
+		    customer.company = obj['company']
+		if 'title' in obj:
+    		    customer.title = obj['title']
+    		if 'about_me' in obj:
+		    customer.about_me = obj['about_me']
+		if 'phone_number' in obj:
+		    customer.phone_number = obj['phone_number']	
+                db.session.add(customer)
+                db.session.commit()
+                return redirect(url_for('index', message = 'customer %d edited successfully' % customer_id))
+        return redirect(url_for('index', message = 'customer %d edited successfully' % customer_id))
     else:
-        return jsonify({'customer' : user.serialize() })
+	#load the given customer
+        user = CustomerService.load_customer(customer_id)
+        if user is None:
+	    return jsonify({})
+        else:
+            return jsonify({'customer' : user.serialize() })
 
+"""
+    Create or retrieve customers (POST or GET).
+"""
 @app.route('/api/v1/customers', methods = ['POST', 'GET'])
 def handle_customers():
     if request.method == 'POST':
@@ -152,13 +183,45 @@ def handle_experts():
             return jsonify({'experts':[user.serialize() for user in users]})
     return "Expert created!"
 
-@app.route('/api/v1/experts/<expert_id>/', methods = ['GET'])
+"""
+    Edit or retrieve expert (POST or GET)
+"""
+@app.route('/api/v1/experts/<expert_id>/', methods = ['POST', 'GET'])
 def handle_expert(expert_id):
-    user = ExpertService.load_expert(expert_id)
-    if user is None:
-	return jsonify({})
+    if request.method == 'POST':
+        #edit an existing expert here
+	if request.headers['Content-Type'] == 'application/json':
+            expert = ExpertService.load_expert(expert_id)
+	    if expert:
+            	obj = request.get_json()
+		if 'email' in obj:
+    		    expert.email = obj['email']
+    		if 'name' in obj:
+		    expert.name = obj['name']
+		if 'company' in obj:
+		    expert.company = obj['company']
+		if 'title' in obj:
+    		    expert.title = obj['title']
+    		if 'about_me' in obj:
+		    expert.about_me = obj['about_me']
+		if 'degree' in obj:
+		    expert.degree = obj['degree']
+		if 'university' in obj:
+		    expert.university = obj['university']
+		if 'major' in obj:
+		    expert.major = obj['major']
+		if 'bio' in obj:
+		    expert.bio = obj['bio']		
+                db.session.add(expert)
+                db.session.commit()
+                return redirect(url_for('index', message = 'expert %d edited successfully' % expert_id))
+        return redirect(url_for('index', message = 'expert %d edited successfully' % expert_id))
     else:
-        return jsonify({'expert' : user.serialize() })
+        user = ExpertService.load_expert(expert_id)
+        if user is None:
+	    return jsonify({})
+        else:
+            return jsonify({'expert' : user.serialize() })
 
 """
     This method loads the categories from a text file and stores it in memory.
@@ -181,13 +244,28 @@ def load_categories():
     session['categories'] = categories
     return jsonify(categories)
 
-@app.route('/api/v1/comment/<comment_id>/', methods = ['GET'])
+@app.route('/api/v1/comment/<comment_id>/', methods = ['POST', 'GET'])
 def handle_comment(comment_id):
-    comment = CommentService.load_comment(comment_id)
-    if comment is None:
-	return jsonify({})
+    if request.method == 'POST':
+        #edit an existing comment here
+	if request.headers['Content-Type'] == 'application/json':
+    	    comment = CommentService.load_comment(comment_id)
+	    if comment:
+            	obj = request.get_json()
+		if 'content' in obj:
+		    comment.content = obj['content']
+		if 'rating' in obj:
+		    comment.rating = obj['rating']
+                db.session.add(comment)
+                db.session.commit()
+                return redirect(url_for('index', message = 'comment %d edited successfully' % comment_id))
+        return redirect(url_for('index', message = 'comment %d edited successfully' % comment_id))
     else:
-        return jsonify({'Comment' : comment.serialize()})	
+        comment = CommentService.load_comment(comment_id)
+        if comment is None:
+	    return jsonify({})
+        else:
+            return jsonify({'Comment' : comment.serialize()})	
 
 @app.route('/api/v1/comments', methods = ['POST', 'GET'])
 def handle_comments():
@@ -235,19 +313,37 @@ def handle_topics():
             return redirect(url_for('index', message = '%d topic created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, topic creation failed'))
     else:
-        topics = Topic.query.all()
+        topics = TopicService.load_topics()
         if topics is None:
             return jsonify({})
         else:
             return jsonify({'topics' : [topic.serialize() for topic in topics]})
 
-@app.route('/api/v1/topic/<topic_id>/', methods = ['GET'])
+"""
+    Edit or retrieve a topic (POST or GET)
+"""
+@app.route('/api/v1/topic/<topic_id>/', methods = ['POST', 'GET'])
 def handle_topic(topic_id):
-    topic = Topic.query.filter_by(topic_id = topic_id).first()
-    if topic is None:
-	return jsonify({})
+    if request.method == 'POST':
+        #edit an existing topic here
+	if request.headers['Content-Type'] == 'application/json':
+    	    topic = TopicService.load_topic(topic_id)
+	    if topic:
+            	obj = request.get_json()
+		if 'body' in obj:
+		    topic.body = obj['body']
+		if 'title' in obj:
+		    topic.title = obj['title']
+                db.session.add(topic)
+                db.session.commit()
+                return redirect(url_for('index', message = 'topic %d edited successfully' % topic_id))
+        return redirect(url_for('index', message = 'topic %d edited successfully' % topic_id))
     else:
-        return jsonify({'topic':topic.serialize()})
+    	topic = TopicService.load_topic(topic_id)
+        if topic is None:
+	    return jsonify({})
+        else:
+            return jsonify({'topic':topic.serialize()})
 
 @app.route('/api/v1/requests', methods = ['POST', 'GET'])
 def handle_requests():
@@ -269,19 +365,35 @@ def handle_requests():
             return redirect(url_for('index', message = '%d topic request created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, topic request creation failed'))
     else:
-        requests = TopicRequest.query.all()
+        requests = TopicRequestService.load_requests()
         if requests is None:
             return jsonify({})
         else:
             return jsonify({'topic_requests' : [r.serialize() for r in requests]})
 
-@app.route('/api/v1/request/<request_id>/', methods = ['GET'])
+"""
+    Edit or retrieve a request (POST or GET)
+    Editing a request essentially means canceling a request.
+    TO-DO: which side can cancel a request and at what stage can a cancellation happen
+"""
+@app.route('/api/v1/request/<request_id>/', methods = ['POST', 'GET'])
 def handle_request(request_id):
-    request = TopicRequest.query.filter_by(request_id = request_id).first()
-    if request is None:
-	return jsonify({})
+    if request.method == 'POST':
+        #edit an existing topic request here
+    	topic_request = TopicRequestService.load_request(request_id)
+	if topic_request:
+	    u = g.user.remove_topic_request_by_request(topic_request)
+	    if u:
+                db.session.add(u)
+                db.session.commit()
+                return redirect(url_for('index', message = 'topic request %d cancled successfully' % request_id))
+        return redirect(url_for('index', message = 'topic request %d canceled unsuccessfully' % request_id))
     else:
-        return jsonify({'topic_request':request.serialize()})
+    	topic_request = TopicRequestService.load_request(request_id)
+        if topic_request is None:
+	    return jsonify({})
+        else:
+            return jsonify({'topic_request':topic_request.serialize()})
 
 @app.route('/api/v1/conversations', methods = ['POST', 'GET'])
 def handle_conversations():
@@ -303,15 +415,18 @@ def handle_conversations():
             return redirect(url_for('index', message = '%d conversations created successfully' % len(obj)))
         return redirect(url_for('index', message = 'content-type incorrect, conversation creation failed'))
     else:
-        convs = Conversation.query.order_by(Conversation.timestamp.desc()).all()
+        convs = ConversationService.load_conversations()
         if convs is None:
             return jsonify({})
         else:
             return jsonify({'conversations' : [c.serialize() for c in convs]})
 
+"""
+    TO-DO: recall a recent conversation like what WeChat does
+"""
 @app.route('/api/v1/conversation/<conversation_id>/', methods = ['GET'])
 def handle_conversation(conversation_id):
-    conv = Conversation.query.filter_by(conversation_id = conversation_id).first()
+    conv = ConversationService.load_conversation(conversation_id)
     if conv is None:
 	return jsonify({})
     else:
@@ -332,6 +447,42 @@ def handle_recommends():
 	#recommendation algorithms kick in here
         return jsonify({'experts' : [expert.serialize() for expert in experts]})
 
+@app.route('/api/v1/background_image/<user_id>/', methods = ['POST', 'GET'])
+def handle_background_image(user_id):
+    if request.method == 'POST':
+	if 'background_image' in request.files and 'user_type' in request.form:
+	    if request.form['user_type'] == 'customer':
+		#Customers
+		user = CustomerService.load_customer(user_id)
+	    else:
+		#Experts 
+		user = ExpertService.load_expert(user_id)
+	    if user:
+	        ext = os.path.splitext(secure_filename(request.files['background_image'].filename))
+                filename = background_image_uploader.save(request.files['background_image'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])
+	        full_path = os.path.join('backgrounds', filename)
+		user.background_image_url = full_path
+		db.session.flush()
+                db.session.commit()
+                return redirect(url_for('index', message = 'background image %s created successfully' % filename))
+	    else:
+	        raise BadThings('User not found', status_code = 404)
+	else:
+	    msg = ''
+	    if 'background_image' not in request.files:
+		msg = 'background image not provided in request'
+	    if 'user_type' not in request.form:
+		msg += ', user type missing in request'
+	    raise BadThings(msg, status_code = 400)
+    else:
+	#Find the full image path
+	filenames = glob.glob(os.path.join(PHOTO_BASE_DIR, 'backgrounds', str(user_id), ORIGINAL_PHOTO_FILENAME + '*'))
+	if len(filenames) > 0:
+	    ext = os.path.splitext(filenames[0])
+	    return send_file(filenames[0], mimetype = 'image/' + ext[1][1:])
+	else:
+	    raise BadThings('Background image not found on server', status_code = 410)
+
 """
     Only support single avatar image uploading now.
     For the POST mode, another argument indicating the type of users is needed. The Customer/Expert db is updated
@@ -345,10 +496,10 @@ def handle_avatar(user_id):
 	if 'avatar' in request.files and 'user_type' in request.form:
 	    if request.form['user_type'] == 'customer':
 		#Customers
-		user = Customer.query.filter_by(user_id = user_id).first()
+		user = CustomerService.load_customer(user_id)
 	    else:
 		#Experts 
-		user = Expert.query.filter_by(user_id = user_id).first()
+		user = ExpertService.load_expert(user_id)
 	    if user:
 	        ext = os.path.splitext(secure_filename(request.files['avatar'].filename))
                 filename = avatar_uploader.save(request.files['avatar'], str(user_id), ORIGINAL_PHOTO_FILENAME + ext[1])

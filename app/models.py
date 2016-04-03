@@ -63,6 +63,7 @@ class BaseUser(db.Model):
     about_me = db.Column(db.String(500))
     avatar_thumbnail_url = db.Column(db.String(250))
     avatar_url = db.Column(db.String(250))
+    background_image_url = db.Column(db.String(250))
     type = db.Column(db.String(20))
 
     """
@@ -120,7 +121,8 @@ class BaseUser(db.Model):
 	    'title': self.title,
 	    'about_me': self.about_me,
             'avatar_thumbnail_url': self.avatar_thumbnail_url,
-	    'avatar_url': self.avatar_url
+	    'avatar_url': self.avatar_url,
+	    'background_image_url': self.background_image_url
 	}
 
     @property
@@ -224,12 +226,18 @@ class Customer(BaseUser):
 	TO-DO: add more check conditions, e.g., a request can be dropped if it is in certain stages.
 	@param topic - a Topic instance
     """
-    def remove_topic_request(self, topic):
+    def remove_topic_request_by_topic(self, topic):
         #r = self.ongoing_topic_requests.filter_by(topic_id = topic.topic_id).first()
         ongoing_topics = self.get_ongoing_requests_by_topic(topic)
 	if len(ongoing_topics) > 0:
             self.topic_requests.remove(ongoing_topics[0])
             return self
+
+    def remove_topic_request_by_request(self, request):
+	r = self.topic_requests.filter_by(request_id = request.request_id).first()
+	if r:
+	    self.topic_requests.remove(r)
+	    return self
 
     """
 	Request a topic for the current customer, adding it to the ongoing request list.
