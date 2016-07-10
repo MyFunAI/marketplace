@@ -4,6 +4,7 @@ from flask.ext.cache import Cache
 from flask.ext.sqlalchemy import SQLAlchemy
 from flask.ext.uploads import UploadSet, configure_uploads, IMAGES, patch_request_class, UploadConfiguration
 from flask_oauthlib.client import OAuth
+from app.misc.easemob import Easemob
 
 app = Flask(__name__)
 app.config.from_object('config')
@@ -38,7 +39,7 @@ qq = oauth.remote_app(
 
 db = SQLAlchemy(app)
 #TO-DO: 'simple' cache is not thread-safe
-cache = Cache(app,config={'CACHE_TYPE': 'simple'})
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
 avatar_uploader = UploadSet('avatars', IMAGES)
 configure_uploads(app, avatar_uploader)
@@ -46,6 +47,7 @@ patch_request_class(app, 5 * 1024 * 1024)  #Max 5M photos
 
 background_image_uploader = UploadSet('backgrounds', IMAGES)
 configure_uploads(app, background_image_uploader)
+easemob = Easemob(app)
 
 from app import views, models
 
