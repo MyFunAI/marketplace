@@ -1,32 +1,43 @@
 # coding=utf-8
 
 import requests
+import json
+from requests.auth import AuthBase
 
 
 class Easemob(object):
+    """SDK for Easemob IM system"""
+    JSON_HEADER = {'content-type': 'application/json'}
+
     def __init__(self, app):
         self.app_id = app.config['EASEMOB_APP_ID']
         self.app_secret = app.config['EASEMOB_APP_SECRET']
         self.app_url = app.config['EASEMOB_URL']
         self.logger = app.logger
+        self.auth = EasemobAuth(self.app_url, self.app_id, self.app_secret)
 
-    def _request(self, resource, data, method='GET'):
+    def _request(self, resource, method='GET', data=None, **kwargs):
         url = self.app_url + resource
-        token_str = 'Bearer {0}'.format(self.access_token)
-        headers = {'Content-Type': 'application/json', 'Authorization': token_str}
-        r = requests.request(method, url, json=data, headers=headers)
+        if data is not None:
+            data = json.dumps(data)
+
+        r = requests.request(method, url, data=data, auth=self.auth, **kwargs)
         code, res = r.status_code, r.json()
         if code != 200:
             error = res.get('error')
             self.logger.warning('Easemob request failed, resource={resource}, '
                                 'status={status}, error={error}'
-                                .format(status=code, error=error, resource=resource))
+                                .format(status=code, error=error,
+                                        resource=resource))
             return 1, error
         else:
             return 0, res
 
     @property
     def access_token(self):
+        """obtain access token from easemob, and add it to cache.
+        :return token: return the token string
+        """
         from app import cache
         cache_key = 'easemob_access_token'
         token = cache.get('cache_key')
@@ -46,6 +57,11 @@ class Easemob(object):
             return None
 
     def user_register_single(self, username, password):
+        """register a easemob user with password.
+        :param username: user's unique name
+        :param password: user's password
+        :return: user info dict
+        """
         resource = 'user'
         data = {'username': username, 'password': password}
         code, res = self._request(resource, data=data, method='POST')
@@ -54,3 +70,49 @@ class Easemob(object):
         else:
             return 0, res['entities'][0]
 
+    def upload_file(self, file_obj):
+        resource = 'chatfiles'
+        files = {'file': ('file', file_obj, file_obj.mimetype,
+                          {'Expires': '0'})}
+
+        code, res = self._request(resource, files=files,
+                                  method='POST')
+        if code:
+            return code, res
+        else:
+            return 0, res['entities'][0]['uuid']
+
+
+class EasemobAuth(AuthBase):
+    """Auth class for easemob"""
+
+    def __init__(self, app_url, app_id, app_secret):
+        self.app_url = app_url
+        self.app_id = app_id
+        self.app_secret = app_secret
+
+    def __call__(self, r):
+        r.headers['Authorization'] = 'Bearer ' + self.get_token()
+        return r
+
+    def get_token(self):
+        """obtain access token from easemob, and add it to cache.
+        :return token: return the token string
+        """
+        from app import cache
+        cache_key = 'easemob_access_token'
+        token = cache.get('cache_key')
+        if token is not None:
+            return token
+
+        url = self.app_url + 'token'
+        data = {'grant_type': 'client_credentials',
+                'client_id': self.app_id,
+                'client_secret': self.app_secret}
+        r = requests.post(url, json=data)
+        if r.status_code == 200:
+            token = r.json()['access_token']
+            cache.set(cache_key, token, timeout=3600 * 24)
+            return token
+        else:
+            return ''

@@ -670,9 +670,17 @@ def handle_missing_resource(error):
     return response
 
 
-@app.route('/api/v1/easemob-test/user', methods=['PUT'])
+@app.route('/api/v1/easemob-test/user', methods=['POST'])
 def easemob_user():
     username = request.form.get('username')
     password = request.form.get('password')
     code, res = easemob.user_register_single(username, password)
     return jsonify(code=code, res=res)
+
+
+@app.route('/api/v1/easemob-test/file', methods=['POST'])
+def easemob_upload():
+    chat_file = request.files['file']
+    code, res = easemob.upload_file(chat_file)
+    return jsonify(code=code, res=res)
+
