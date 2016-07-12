@@ -33,29 +33,6 @@ class Easemob(object):
         else:
             return 0, res
 
-    @property
-    def access_token(self):
-        """obtain access token from easemob, and add it to cache.
-        :return token: return the token string
-        """
-        from app import cache
-        cache_key = 'easemob_access_token'
-        token = cache.get('cache_key')
-        if token is not None:
-            return token
-
-        url = self.app_url + 'token'
-        data = {'grant_type': 'client_credentials',
-                'client_id': self.app_id,
-                'client_secret': self.app_secret}
-        r = requests.post(url, json=data)
-        if r.status_code == 200:
-            token = r.json()['access_token']
-            cache.set(cache_key, token, timeout=3600 * 24)
-            return token
-        else:
-            return None
-
     def user_register_single(self, username, password):
         """register a easemob user with password.
         :param username: user's unique name
@@ -80,7 +57,7 @@ class Easemob(object):
         if code:
             return code, res
         else:
-            return 0, res['entities'][0]['uuid']
+            return 0, res['entities'][0]
 
 
 class EasemobAuth(AuthBase):
