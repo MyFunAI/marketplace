@@ -14,7 +14,9 @@ class Easemob(object):
         self.app_secret = app.config['EASEMOB_APP_SECRET']
         self.app_url = app.config['EASEMOB_URL']
         self.logger = app.logger
-        self.auth = EasemobAuth(self.app_url, self.app_id, self.app_secret)
+        token_timeout = app.config['EASEMOB_TOKEN_TIMEOUT']
+        self.auth = EasemobAuth(self.app_url, self.app_id, self.app_secret,
+                                token_timeout)
 
     def _request(self, resource, method='GET', data=None, **kwargs):
         url = self.app_url + resource
@@ -63,10 +65,11 @@ class Easemob(object):
 class EasemobAuth(AuthBase):
     """Auth class for easemob"""
 
-    def __init__(self, app_url, app_id, app_secret):
+    def __init__(self, app_url, app_id, app_secret, token_timeout):
         self.app_url = app_url
         self.app_id = app_id
         self.app_secret = app_secret
+        self.token_timeout = token_timeout
 
     def __call__(self, r):
         r.headers['Authorization'] = 'Bearer ' + self.get_token()
@@ -78,7 +81,7 @@ class EasemobAuth(AuthBase):
         """
         from app import cache
         cache_key = 'easemob_access_token'
-        token = cache.get('cache_key')
+        token = cache.get(cache_key)
         if token is not None:
             return token
 
@@ -89,7 +92,7 @@ class EasemobAuth(AuthBase):
         r = requests.post(url, json=data)
         if r.status_code == 200:
             token = r.json()['access_token']
-            cache.set(cache_key, token, timeout=3600 * 24)
+            cache.set(cache_key, token, timeout=self.token_timeout)
             return token
         else:
             return ''
